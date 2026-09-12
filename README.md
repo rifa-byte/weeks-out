@@ -33,10 +33,13 @@ app/
   _layout.tsx         root: opens the SQLite database, loads settings, sets theme
   (tabs)/index.tsx    Log — weeks-out header, best e1RMs, sessions list
   (tabs)/meet.tsx     Meet — profile, attempt planner + warm-ups, scoring, plate loader
-  (tabs)/programs.tsx Programs — templates (sprint 3)
-  session/[id].tsx    a single session: add sets, see e1RM and PRs, notes
+  (tabs)/programs.tsx Programs — pick a template, or track the active program week by week
+  program/start.tsx   enter your bests and start a template
+  program/day/[id].tsx a program day: planned sets, one tap to log it
+  session/[id].tsx    a single session: add sets (tap one to edit), see e1RM and PRs, notes
 lib/
   math.ts             every formula, pure functions on kg (unit-tested)
+  programs.ts         program templates and the resolver that turns them into kg (unit-tested)
   db.ts               SQLite schema + queries
   settings.tsx        units / sex / bodyweight / meet date, persisted
   format.ts           dates and number parsing
@@ -48,7 +51,8 @@ constants/theme.ts    palette (light + dark), plate colours, spacing
 
 - Sprint 1 (done): log + e1RM + PRs
 - Sprint 2 (done, v0): attempt planner, warm-ups, IPF GL / DOTS / Wilks, plate loader, weight class
-- Sprint 3: programs that load from your e1RMs and push sessions into the log; app icon; store screenshots
+- Sprint 3 (done, v0): three program templates that load from your e1RMs, a week-by-week tracker, and one tap to log a day into the session log
+- Next: app icon; store screenshots; polish from real use
 - Then: Google Play closed test (12 testers, 14 days), TestFlight, launch on meet day
 
 ## Store builds (later)

@@ -29,6 +29,8 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerTitleStyle: { fontWeight: '700' } }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="session/[id]" options={{ title: 'Session' }} />
+            <Stack.Screen name="program/start" options={{ title: 'Start program', presentation: 'modal' }} />
+            <Stack.Screen name="program/day/[id]" options={{ title: 'Program day' }} />
           </Stack>
         </ThemeProvider>
       </SettingsProvider>

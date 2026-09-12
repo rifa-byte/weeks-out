@@ -58,6 +58,18 @@ export default function SessionScreen() {
     await refresh();
   }
 
+  /** Pull a logged set back into the editor so it can be corrected. */
+  async function edit(s: SetRow) {
+    const isLift = LIFTS.includes(s.exercise as Lift);
+    setExercise(isLift ? (s.exercise as Lift) : 'other');
+    if (!isLift) setOtherName(s.exercise);
+    setWeight(fmt(s.weight_kg));
+    setReps(String(s.reps));
+    setRpe(s.rpe);
+    await deleteSet(db, s.id);
+    await refresh();
+  }
+
   async function saveNotes(v: string) {
     setNotes(v);
     await updateSessionNotes(db, sessionId, v);
@@ -101,14 +113,17 @@ export default function SessionScreen() {
         </Card>
 
         <View style={{ gap: space.sm }}>
-          <Eyebrow>Sets</Eyebrow>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Eyebrow>Sets</Eyebrow>
+            {sets.length > 0 ? <Body muted style={{ fontSize: 12 }}>tap a set to edit it</Body> : null}
+          </Row>
           {sets.length === 0 ? <Body muted>No sets yet.</Body> : (
             <Card style={{ gap: 0, paddingVertical: 4 }}>
               {sets.map((s, i) => (
                 <View key={s.id}>
                   {i > 0 ? <Divider /> : null}
                   <Row style={{ paddingVertical: 10, justifyContent: 'space-between' }}>
-                    <Row style={{ flex: 1 }}>
+                    <Pressable onPress={() => edit(s)} accessibilityLabel="Edit set" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Dot color={(liftColor as Record<string, string>)[s.exercise] ?? t.ink3} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: t.ink, fontWeight: '700', fontSize: 15, textTransform: 'capitalize' }}>
@@ -118,7 +133,7 @@ export default function SessionScreen() {
                           {fmt(s.weight_kg)} {unit} × {s.reps}{s.rpe != null ? ` @ ${s.rpe}` : ''} · e1RM {fmt(s.e1rm)}
                         </Body>
                       </View>
-                    </Row>
+                    </Pressable>
                     <Pressable onPress={() => remove(s.id)} accessibilityLabel="Delete set" hitSlop={10} style={{ paddingHorizontal: 6 }}>
                       <Text style={{ color: t.ink3, fontSize: 18 }}>×</Text>
                     </Pressable>

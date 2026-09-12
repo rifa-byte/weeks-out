@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { e1rm, type Lift, type Sex } from './math';
+import { resolveProgram, type Bests, type ResolvedSet, type Template } from './programs';
 
 export const DB_NAME = 'weeksout.db';
 
@@ -28,6 +29,26 @@ export async function migrate(db: SQLiteDatabase) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS programs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      weeks INTEGER NOT NULL,
+      days_per_week INTEGER NOT NULL,
+      bests_json TEXT NOT NULL,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      ended_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS program_days (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      week INTEGER NOT NULL,
+      day INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      plan_json TEXT NOT NULL,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_program_days_program ON program_days(program_id);
   `);
 }
 
@@ -99,6 +120,7 @@ export async function updateSessionNotes(db: SQLiteDatabase, id: number, notes: 
 }
 
 export async function deleteSession(db: SQLiteDatabase, id: number) {
+  await db.runAsync('UPDATE program_days SET session_id = NULL WHERE session_id = ?', id);
   await db.runAsync('DELETE FROM sets WHERE session_id = ?', id);
   await db.runAsync('DELETE FROM sessions WHERE id = ?', id);
 }
@@ -136,4 +158,73 @@ export async function isPr(db: SQLiteDatabase, set: SetRow): Promise<boolean> {
     'SELECT MAX(e1rm) AS best FROM sets WHERE exercise = ? AND id < ?', set.exercise, set.id,
   );
   return r?.best == null || set.e1rm > r.best;
+}
+
+// ---------- programs ----------
+
+export interface ProgramRow { id: number; template_id: string; name: string; weeks: number; days_per_week: number; bests_json: string; started_at: string; ended_at: string | null }
+export interface ProgramDayRow { id: number; program_id: number; week: number; day: number; name: string; plan_json: string; session_id: number | null }
+export interface ProgramDay extends Omit<ProgramDayRow, 'plan_json'> { sets: ResolvedSet[] }
+
+export async function activeProgram(db: SQLiteDatabase): Promise<ProgramRow | null> {
+  return db.getFirstAsync<ProgramRow>('SELECT * FROM programs WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1');
+}
+
+export async function startProgram(db: SQLiteDatabase, template: Template, bests: Bests): Promise<number> {
+  const days = resolveProgram(template, bests);
+  let programId = 0;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("UPDATE programs SET ended_at = datetime('now') WHERE ended_at IS NULL");
+    const r = await db.runAsync(
+      'INSERT INTO programs(template_id, name, weeks, days_per_week, bests_json) VALUES (?, ?, ?, ?, ?)',
+      template.id, template.name, template.weeks, template.daysPerWeek, JSON.stringify(bests),
+    );
+    programId = r.lastInsertRowId;
+    for (const d of days) {
+      await db.runAsync(
+        'INSERT INTO program_days(program_id, week, day, name, plan_json) VALUES (?, ?, ?, ?, ?)',
+        programId, d.week, d.day, d.name, JSON.stringify(d.sets),
+      );
+    }
+  });
+  return programId;
+}
+
+export async function endProgram(db: SQLiteDatabase, id: number) {
+  await db.runAsync("UPDATE programs SET ended_at = datetime('now') WHERE id = ?", id);
+}
+
+const parseDay = (r: ProgramDayRow): ProgramDay => {
+  const { plan_json, ...rest } = r;
+  return { ...rest, sets: JSON.parse(plan_json) as ResolvedSet[] };
+};
+
+export async function listProgramDays(db: SQLiteDatabase, programId: number): Promise<ProgramDay[]> {
+  const rows = await db.getAllAsync<ProgramDayRow>('SELECT * FROM program_days WHERE program_id = ? ORDER BY week, day', programId);
+  return rows.map(parseDay);
+}
+
+export async function getProgramDay(db: SQLiteDatabase, id: number): Promise<ProgramDay | null> {
+  const r = await db.getFirstAsync<ProgramDayRow>('SELECT * FROM program_days WHERE id = ?', id);
+  return r ? parseDay(r) : null;
+}
+
+/** Create a log session pre-filled with the day's planned sets, and link it to the day. */
+export async function logProgramDay(db: SQLiteDatabase, day: ProgramDay): Promise<number> {
+  const sessionId = await createSession(db);
+  await db.withTransactionAsync(async () => {
+    for (const s of day.sets) {
+      if (s.weightKg == null) continue; // accessories and meet-day attempts are logged by hand
+      for (let i = 0; i < s.sets; i++) {
+        await addSet(db, { sessionId, exercise: s.exercise, weightKg: s.weightKg, reps: s.reps, rpe: s.rpe ?? null });
+      }
+    }
+    await db.runAsync('UPDATE program_days SET session_id = ? WHERE id = ?', sessionId, day.id);
+  });
+  return sessionId;
+}
+
+/** Sessions deleted from the log should unlink from their program day. */
+export async function unlinkSession(db: SQLiteDatabase, sessionId: number) {
+  await db.runAsync('UPDATE program_days SET session_id = NULL WHERE session_id = ?', sessionId);
 }
