@@ -1,3 +1,4 @@
+import { factorOf, parentOf } from '../exercises';
 import { TEMPLATES, liftsNeeded, resolveProgram, templateById } from '../programs';
 
 const bests = { squat: 200, bench: 130, deadlift: 240 };
@@ -18,8 +19,8 @@ describe('templates', () => {
           if (s.weightKg == null) { expect(s.pct).toBeUndefined(); continue; }
           expect(s.weightKg % 2.5).toBe(0);
           expect(s.weightKg).toBeGreaterThanOrEqual(20);
-          const best = bests[s.exercise as keyof typeof bests];
-          expect(s.weightKg).toBeLessThanOrEqual(best);
+          const best = bests[parentOf(s.exercise) as keyof typeof bests];
+          expect(s.weightKg).toBeLessThanOrEqual(best * factorOf(s.exercise));
         }
       }
     }
@@ -52,7 +53,7 @@ describe('templates', () => {
   test('missing e1RM leaves weights null instead of crashing', () => {
     const t = templateById('full-body-3')!;
     const days = resolveProgram(t, { squat: 200 });
-    const benchSets = days.flatMap(d => d.sets).filter(s => s.exercise === 'bench');
+    const benchSets = days.flatMap(d => d.sets).filter(s => parentOf(s.exercise) === 'bench');
     expect(benchSets.length).toBeGreaterThan(0);
     expect(benchSets.every(s => s.weightKg == null)).toBe(true);
   });

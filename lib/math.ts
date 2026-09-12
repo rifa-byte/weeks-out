@@ -176,6 +176,27 @@ export const IPF_PLATES: Plate[] = [
   { kg: 0.25, color: '#9A9A9A', name: 'chrome' },
 ];
 
+/** Typical commercial-gym kg set (black rubber / iron). */
+export const GYM_KG_PLATES: Plate[] = [
+  { kg: 25, color: '#2A2826', name: '25' },
+  { kg: 20, color: '#2A2826', name: '20' },
+  { kg: 15, color: '#2A2826', name: '15' },
+  { kg: 10, color: '#2A2826', name: '10' },
+  { kg: 5, color: '#2A2826', name: '5' },
+  { kg: 2.5, color: '#2A2826', name: '2.5' },
+  { kg: 1.25, color: '#2A2826', name: '1.25' },
+];
+
+/** Typical commercial-gym lb set, expressed in kg. */
+export const GYM_LB_PLATES: Plate[] = [45, 35, 25, 10, 5, 2.5].map(lb => ({ kg: lb * KG_PER_LB, color: '#2A2826', name: `${lb}` }));
+
+export type PlateSetId = 'ipf' | 'gym-kg' | 'gym-lb';
+export const PLATE_SETS: Record<PlateSetId, { label: string; plates: Plate[]; barKg: number; collarsKg: number; step: number }> = {
+  'ipf': { label: 'Competition (IPF)', plates: IPF_PLATES, barKg: 20, collarsKg: 5, step: 2.5 },
+  'gym-kg': { label: 'Gym, kg plates', plates: GYM_KG_PLATES, barKg: 20, collarsKg: 0, step: 2.5 },
+  'gym-lb': { label: 'Gym, lb plates', plates: GYM_LB_PLATES, barKg: 45 * KG_PER_LB, collarsKg: 0, step: 5 * KG_PER_LB },
+};
+
 export interface PlateLoad { perSide: Plate[]; remainder: number }
 
 /**

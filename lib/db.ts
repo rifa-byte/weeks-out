@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { e1rm, type Lift, type Sex } from './math';
+import { e1rm, type Lift, type PlateSetId, type Sex } from './math';
 import { resolveProgram, type Bests, type ResolvedSet, type Template } from './programs';
 
 export const DB_NAME = 'weeksout.db';
@@ -49,6 +49,10 @@ export async function migrate(db: SQLiteDatabase) {
       session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_program_days_program ON program_days(program_id);
+    CREATE TABLE IF NOT EXISTS bodyweight (
+      date TEXT PRIMARY KEY,          -- ISO yyyy-mm-dd, one entry per day
+      kg REAL NOT NULL
+    );
   `);
 }
 
@@ -63,6 +67,9 @@ export interface Settings {
   bodyweightKg: number;
   meetDate: string; // ISO yyyy-mm-dd
   meetName: string;
+  plateSet: PlateSetId;   // what the gym you're in actually has
+  barKg: number;          // bar weight for plate maths
+  restSeconds: number;    // rest timer target
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -71,6 +78,9 @@ export const DEFAULT_SETTINGS: Settings = {
   bodyweightKg: 83,
   meetDate: '2026-11-07',
   meetName: 'My meet',
+  plateSet: 'gym-kg',
+  barKg: 20,
+  restSeconds: 180,
 };
 
 // ---------- settings ----------
@@ -83,6 +93,9 @@ export async function loadSettings(db: SQLiteDatabase): Promise<Settings> {
     else if (r.key === 'bodyweightKg') out.bodyweightKg = Number(r.value) || DEFAULT_SETTINGS.bodyweightKg;
     else if (r.key === 'meetDate') out.meetDate = r.value;
     else if (r.key === 'meetName') out.meetName = r.value;
+    else if (r.key === 'plateSet') out.plateSet = (['ipf', 'gym-kg', 'gym-lb'] as PlateSetId[]).includes(r.value as PlateSetId) ? (r.value as PlateSetId) : DEFAULT_SETTINGS.plateSet;
+    else if (r.key === 'barKg') out.barKg = Number(r.value) || DEFAULT_SETTINGS.barKg;
+    else if (r.key === 'restSeconds') out.restSeconds = Number(r.value) || DEFAULT_SETTINGS.restSeconds;
   }
   return out;
 }
@@ -227,4 +240,66 @@ export async function logProgramDay(db: SQLiteDatabase, day: ProgramDay): Promis
 /** Sessions deleted from the log should unlink from their program day. */
 export async function unlinkSession(db: SQLiteDatabase, sessionId: number) {
   await db.runAsync('UPDATE program_days SET session_id = NULL WHERE session_id = ?', sessionId);
+}
+
+// ---------- exercise history ----------
+export interface LastTime { date: string; session_id: number; sets: { weight_kg: number; reps: number; rpe: number | null; e1rm: number }[] }
+
+/** The most recent session (other than `excludeSessionId`) that contains this exercise, with its sets. */
+export async function lastTimeFor(db: SQLiteDatabase, exercise: string, excludeSessionId: number): Promise<LastTime | null> {
+  const s = await db.getFirstAsync<{ id: number; date: string }>(
+    `SELECT s.id, s.date FROM sessions s
+     WHERE s.id != ? AND EXISTS (SELECT 1 FROM sets WHERE session_id = s.id AND exercise = ?)
+     ORDER BY s.date DESC, s.id DESC LIMIT 1`, excludeSessionId, exercise,
+  );
+  if (!s) return null;
+  const sets = await db.getAllAsync<{ weight_kg: number; reps: number; rpe: number | null; e1rm: number }>(
+    'SELECT weight_kg, reps, rpe, e1rm FROM sets WHERE session_id = ? AND exercise = ? ORDER BY id', s.id, exercise,
+  );
+  return { date: s.date, session_id: s.id, sets };
+}
+
+export async function bestFor(db: SQLiteDatabase, exercise: string): Promise<number | null> {
+  const r = await db.getFirstAsync<{ best: number | null }>('SELECT MAX(e1rm) AS best FROM sets WHERE exercise = ?', exercise);
+  return r?.best ?? null;
+}
+
+// ---------- program editing ----------
+export async function updateProgramDayPlan(db: SQLiteDatabase, dayId: number, sets: ResolvedSet[]) {
+  await db.runAsync('UPDATE program_days SET plan_json = ? WHERE id = ?', JSON.stringify(sets), dayId);
+}
+
+export async function nextProgramDay(db: SQLiteDatabase): Promise<{ program: ProgramRow; day: ProgramDay; done: number; total: number } | null> {
+  const program = await activeProgram(db);
+  if (!program) return null;
+  const days = await listProgramDays(db, program.id);
+  const day = days.find(d => d.session_id == null);
+  if (!day) return null;
+  return { program, day, done: days.filter(d => d.session_id != null).length, total: days.length };
+}
+
+// ---------- bodyweight ----------
+export interface BodyweightRow { date: string; kg: number }
+
+export async function listBodyweight(db: SQLiteDatabase, limit = 60): Promise<BodyweightRow[]> {
+  return db.getAllAsync<BodyweightRow>('SELECT date, kg FROM bodyweight ORDER BY date DESC LIMIT ?', limit);
+}
+
+export async function setBodyweight(db: SQLiteDatabase, date: string, kg: number) {
+  await db.runAsync('INSERT INTO bodyweight(date, kg) VALUES (?, ?) ON CONFLICT(date) DO UPDATE SET kg = excluded.kg', date, kg);
+}
+
+export async function deleteBodyweight(db: SQLiteDatabase, date: string) {
+  await db.runAsync('DELETE FROM bodyweight WHERE date = ?', date);
+}
+
+// ---------- free-form JSON settings (meet plan, attempts) ----------
+export async function getJson<T>(db: SQLiteDatabase, key: string, fallback: T): Promise<T> {
+  const r = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', key);
+  if (!r) return fallback;
+  try { return JSON.parse(r.value) as T; } catch { return fallback; }
+}
+
+export async function setJson(db: SQLiteDatabase, key: string, value: unknown) {
+  await db.runAsync('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
 }

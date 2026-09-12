@@ -1,7 +1,12 @@
-import { LIFT_LABEL } from './math';
+import { exerciseName } from './exercises';
 
 export function labelFor(exercise: string) {
-  return (LIFT_LABEL as Record<string, string>)[exercise] ?? exercise;
+  return exerciseName(exercise);
+}
+
+export function mmss(totalSeconds: number) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 export function formatDate(iso: string) {

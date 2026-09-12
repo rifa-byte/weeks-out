@@ -32,14 +32,20 @@ npm run typecheck # TypeScript
 app/
   _layout.tsx         root: opens the SQLite database, loads settings, sets theme
   (tabs)/index.tsx    Log — weeks-out header, best e1RMs, sessions list
-  (tabs)/meet.tsx     Meet — profile, attempt planner + warm-ups, scoring, plate loader
+  (tabs)/meet.tsx     Meet — profile, attempt planner + warm-ups, bodyweight log, scoring, plate loader
+  meet/day.tsx        Meet-day mode: timeline + platform attempts
   (tabs)/programs.tsx Programs — pick a template, or track the active program week by week
   program/start.tsx   enter your bests and start a template
-  program/day/[id].tsx a program day: planned sets, one tap to log it
+  program/day/[id].tsx a program day: planned sets, Customise (swap/add/remove), one tap to log it
+  exercise/pick.tsx   movement picker: search, lift, weak-point / rehab / muscle filters, custom names
   session/[id].tsx    a single session: add sets (tap one to edit), see e1RM and PRs, notes
 lib/
   math.ts             every formula, pure functions on kg (unit-tested)
   programs.ts         program templates and the resolver that turns them into kg (unit-tested)
+  exercises.ts        the movement library: ids, categories, parent lift, strength factor, tags (unit-tested)
+  picker.ts           callback bridge for the picker route
+  meetday.ts          meet-day timeline and attempt rules (unit-tested)
+  prep.ts             pre-session stretches, band work and holds per lift (unit-tested)
   db.ts               SQLite schema + queries
   settings.tsx        units / sex / bodyweight / meet date, persisted
   format.ts           dates and number parsing
@@ -52,7 +58,9 @@ constants/theme.ts    palette (light + dark), plate colours, spacing
 - Sprint 1 (done): log + e1RM + PRs
 - Sprint 2 (done, v0): attempt planner, warm-ups, IPF GL / DOTS / Wilks, plate loader, weight class
 - Sprint 3 (done, v0): three program templates that load from your e1RMs, a week-by-week tracker, and one tap to log a day into the session log
-- Next: app icon; store screenshots; polish from real use
+- Sprint 4 (done, v0): exercise library (competition lifts, variations with strength factors, secondary, accessories; weak-point and rehab tags), program customisation (swap / add / remove / ± sets & reps), Log tab follows the active program, last-time history and best per movement, rest timer, plate strip while logging, gym plate sets (kg / lb / IPF) and bar weight, bodyweight log with class-limit distance
+- Sprint 5 (done, v0): meet-day mode (weigh-in / flight inputs → day-before and meet-day timeline that follows the clock; attempt cards with good / miss, next-attempt suggestions, plates and warm-ups, running total with IPF GL and DOTS), pre-session prep block (stretches, band work, static holds chosen from the day's lifts)
+- Next: app icon; store screenshots; friends' feedback via Issues (see CONTRIBUTING.md)
 - Then: Google Play closed test (12 testers, 14 days), TestFlight, launch on meet day
 
 ## Store builds (later)

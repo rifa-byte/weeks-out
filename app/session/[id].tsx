@@ -1,37 +1,44 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { PlateStrip } from '@/components/PlateStrip';
+import { PrepBlock } from '@/components/PrepBlock';
+import { RestTimer } from '@/components/RestTimer';
 import { Body, Button, Card, Divider, Dot, Eyebrow, Field, Num, Row, Screen, Segmented } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
-import { addSet, deleteSet, getSession, isPr, listSets, updateSessionNotes, type SetRow } from '@/lib/db';
+import { addSet, bestFor, deleteSet, getSession, isPr, lastTimeFor, listSets, todayIso, updateSessionNotes, type LastTime, type SetRow } from '@/lib/db';
+import { exerciseById, parentOf } from '@/lib/exercises';
 import { formatDate, labelFor, parseNum } from '@/lib/format';
 import { e1rm, LIFTS, LIFT_LABEL, RPE_VALUES, type Lift } from '@/lib/math';
+import { registerPick } from '@/lib/picker';
 import { useSettings } from '@/lib/settings';
-
-type ExerciseChoice = Lift | 'other';
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = Number(id);
   const db = useSQLiteContext();
+  const router = useRouter();
   const t = useTheme();
-  const { fmt, unit, toKg } = useSettings();
+  const { settings, set: setSetting, fmt, unit, toKg } = useSettings();
 
   const [date, setDate] = useState('');
   const [notes, setNotes] = useState('');
   const [sets, setSets] = useState<(SetRow & { pr: boolean })[]>([]);
 
-  const [exercise, setExercise] = useState<ExerciseChoice>('squat');
-  const [otherName, setOtherName] = useState('');
+  const [exercise, setExercise] = useState<string>('squat');
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [rpe, setRpe] = useState<number | null>(8);
+  const [restStart, setRestStart] = useState<number | null>(null);
+
+  const [last, setLast] = useState<LastTime | null>(null);
+  const [best, setBest] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const rows = await listSets(db, sessionId);
-    const withPr = await Promise.all(rows.map(async r => ({ ...r, pr: LIFTS.includes(r.exercise as Lift) && (await isPr(db, r)) })));
+    const withPr = await Promise.all(rows.map(async r => ({ ...r, pr: !!parentOf(r.exercise) && (await isPr(db, r)) })));
     setSets(withPr);
   }, [db, sessionId]);
 
@@ -40,16 +47,26 @@ export default function SessionScreen() {
     refresh();
   }, [db, sessionId, refresh]);
 
+  // history for the selected movement
+  useEffect(() => {
+    let alive = true;
+    lastTimeFor(db, exercise, sessionId).then(l => { if (alive) setLast(l); });
+    bestFor(db, exercise).then(b => { if (alive) setBest(b); });
+    return () => { alive = false; };
+  }, [db, exercise, sessionId, sets.length]);
+
   const w = parseNum(weight);
   const r = parseNum(reps);
-  const preview = useMemo(() => (w && r && r > 0 ? e1rm(toKg(w), Math.round(r), rpe) : null), [w, r, rpe, toKg]);
-  const exerciseName = exercise === 'other' ? otherName.trim().toLowerCase() : exercise;
-  const canAdd = !!w && w > 0 && !!r && r > 0 && exerciseName.length > 0;
+  const wKg = w && w > 0 ? toKg(w) : null;
+  const preview = useMemo(() => (wKg && r && r > 0 ? e1rm(wKg, Math.round(r), rpe) : null), [wKg, r, rpe]);
+  const canAdd = !!wKg && !!r && r > 0;
+  const info = exerciseById(exercise);
+  const isBarbell = !!parentOf(exercise) || ['overhead-press', 'push-press', 'barbell-row', 'pendlay-row', 'hip-thrust'].includes(exercise);
 
   async function add() {
-    if (!canAdd || !w || !r) return;
-    await addSet(db, { sessionId, exercise: exerciseName, weightKg: toKg(w), reps: Math.round(r), rpe });
-    setReps('');
+    if (!canAdd || !wKg || !r) return;
+    await addSet(db, { sessionId, exercise, weightKg: wKg, reps: Math.round(r), rpe });
+    setRestStart(Date.now());
     await refresh();
   }
 
@@ -60,9 +77,7 @@ export default function SessionScreen() {
 
   /** Pull a logged set back into the editor so it can be corrected. */
   async function edit(s: SetRow) {
-    const isLift = LIFTS.includes(s.exercise as Lift);
-    setExercise(isLift ? (s.exercise as Lift) : 'other');
-    if (!isLift) setOtherName(s.exercise);
+    setExercise(s.exercise);
     setWeight(fmt(s.weight_kg));
     setReps(String(s.reps));
     setRpe(s.rpe);
@@ -75,25 +90,66 @@ export default function SessionScreen() {
     await updateSessionNotes(db, sessionId, v);
   }
 
+  function openPicker() {
+    const key = registerPick({ title: 'Pick a movement' }, chosen => setExercise(chosen));
+    router.push({ pathname: '/exercise/pick', params: { key } });
+  }
+
+  const quick: string[] = [...LIFTS, ...(LIFTS.includes(exercise as Lift) ? [] : [exercise])];
+  // lifts this session is about: whatever is logged, plus the one selected
+  const sessionLifts = useMemo(() => {
+    const found = new Set<Lift>();
+    for (const s of sets) { const p = parentOf(s.exercise); if (p) found.add(p); }
+    const p = parentOf(exercise); if (p) found.add(p);
+    return LIFTS.filter(l => found.has(l));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sets.map(s => s.exercise).join(','), exercise]);
+
   return (
     <>
       <Stack.Screen options={{ title: date ? formatDate(date) : 'Session' }} />
       <Screen>
+        {date === todayIso() ? <PrepBlock lifts={sessionLifts} /> : null}
+        <RestTimer
+          startedAt={restStart}
+          targetSeconds={settings.restSeconds}
+          onTargetChange={s => setSetting('restSeconds', s)}
+          onReset={() => setRestStart(restStart == null ? Date.now() : null)}
+        />
+
         <Card>
-          <Eyebrow>Add a set</Eyebrow>
-          <Segmented<ExerciseChoice>
-            options={[...LIFTS, 'other']}
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Eyebrow>Add a set</Eyebrow>
+            <Pressable onPress={openPicker} accessibilityRole="button" hitSlop={8}>
+              <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>All movements ›</Text>
+            </Pressable>
+          </Row>
+          <Segmented<string>
+            options={quick}
             value={exercise}
             onChange={setExercise}
-            labels={v => (v === 'other' ? 'Other' : LIFT_LABEL[v])}
+            labels={v => (LIFT_LABEL as Record<string, string>)[v] ?? labelFor(v)}
           />
-          {exercise === 'other' ? (
-            <Field label="Exercise" value={otherName} onChangeText={setOtherName} placeholder="e.g. pause squat, row" autoCapitalize="none" />
+          {info && info.category !== 'main' ? (
+            <Body muted style={{ fontSize: 12 }}>{info.name}{info.parent ? ` · ~${Math.round(info.factor * 100)}% of ${LIFT_LABEL[info.parent].toLowerCase()}` : ''}{info.bodyweight ? ' · log added load' : ''}</Body>
           ) : null}
+
+          {(last || best) ? (
+            <View style={{ backgroundColor: t.panelAlt, borderRadius: 8, padding: 10, gap: 2 }}>
+              {last ? (
+                <Text style={{ color: t.ink2, fontSize: 13 }}>
+                  <Text style={{ fontWeight: '700', color: t.ink }}>Last time</Text> ({formatDate(last.date)}): {summarizeSets(last.sets, fmt)}
+                </Text>
+              ) : null}
+              {best ? <Text style={{ color: t.ink2, fontSize: 13 }}><Text style={{ fontWeight: '700', color: t.ink }}>Best e1RM</Text> {fmt(best)} {unit}</Text> : null}
+            </View>
+          ) : null}
+
           <Row style={{ alignItems: 'flex-end' }}>
             <Field label={`Weight (${unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="0" />
             <Field label="Reps" value={reps} onChangeText={setReps} keyboardType="number-pad" placeholder="0" />
           </Row>
+          {wKg && isBarbell && wKg > settings.barKg ? <PlateStrip weightKg={wKg} plateSet={settings.plateSet} barKg={settings.barKg} /> : null}
           <View style={{ gap: 4 }}>
             <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>RPE</Text>
             <Segmented<number | 0>
@@ -124,9 +180,9 @@ export default function SessionScreen() {
                   {i > 0 ? <Divider /> : null}
                   <Row style={{ paddingVertical: 10, justifyContent: 'space-between' }}>
                     <Pressable onPress={() => edit(s)} accessibilityLabel="Edit set" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Dot color={(liftColor as Record<string, string>)[s.exercise] ?? t.ink3} />
+                      <Dot color={parentOf(s.exercise) ? liftColor[parentOf(s.exercise)!] : t.ink3} />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: t.ink, fontWeight: '700', fontSize: 15, textTransform: 'capitalize' }}>
+                        <Text style={{ color: t.ink, fontWeight: '700', fontSize: 15 }}>
                           {labelFor(s.exercise)}{s.pr ? <Text style={{ color: t.accent }}>  PR</Text> : null}
                         </Text>
                         <Body muted style={{ fontSize: 13 }}>
@@ -151,4 +207,15 @@ export default function SessionScreen() {
       </Screen>
     </>
   );
+}
+
+function summarizeSets(sets: LastTime['sets'], fmt: (kg: number) => string) {
+  // Collapse identical sets: "140 × 5 @ 8 ×3, 150 × 3 @ 9"
+  const groups: { key: string; label: string; n: number }[] = [];
+  for (const s of sets) {
+    const label = `${fmt(s.weight_kg)} × ${s.reps}${s.rpe != null ? ` @ ${s.rpe}` : ''}`;
+    const g = groups.find(x => x.key === label);
+    if (g) g.n++; else groups.push({ key: label, label, n: 1 });
+  }
+  return groups.map(g => (g.n > 1 ? `${g.label} ×${g.n}` : g.label)).join(', ');
 }

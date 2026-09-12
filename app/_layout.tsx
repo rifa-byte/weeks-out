@@ -31,6 +31,8 @@ export default function RootLayout() {
             <Stack.Screen name="session/[id]" options={{ title: 'Session' }} />
             <Stack.Screen name="program/start" options={{ title: 'Start program', presentation: 'modal' }} />
             <Stack.Screen name="program/day/[id]" options={{ title: 'Program day' }} />
+            <Stack.Screen name="exercise/pick" options={{ title: 'Pick a movement', presentation: 'modal' }} />
+            <Stack.Screen name="meet/day" options={{ title: 'Meet day' }} />
           </Stack>
         </ThemeProvider>
       </SettingsProvider>

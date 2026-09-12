@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -6,15 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Num, Row, Screen, Segmented, Title } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
-import { bestByLift } from '@/lib/db';
+import { bestByLift, deleteBodyweight, listBodyweight, setBodyweight, todayIso, type BodyweightRow } from '@/lib/db';
 import { formatDate, parseIso, parseNum } from '@/lib/format';
 import {
-  dots, ipfClass, ipfGL, LIFTS, LIFT_LABEL, loadBar, planAttempts, roundTo, warmups, weeksOut, wilks, type Lift, type Sex,
+  dots, ipfClass, ipfGL, IPF_CLASSES, LIFTS, LIFT_LABEL, loadBar, PLATE_SETS, planAttempts, roundTo, warmups, weeksOut, wilks,
+  type Lift, type PlateSetId, type Sex,
 } from '@/lib/math';
 import { useSettings } from '@/lib/settings';
 
 export default function MeetScreen() {
   const db = useSQLiteContext();
+  const router = useRouter();
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { settings, set, fmt, unit, toKg, fromKg } = useSettings();
@@ -62,9 +64,26 @@ export default function MeetScreen() {
 
   // ----- plates -----
   const [plateText, setPlateText] = useState('');
-  const [collars, setCollars] = useState(true);
+  const [collars, setCollars] = useState(settings.plateSet === 'ipf');
   const plateKg = (() => { const n = parseNum(plateText); return n && n > 0 ? toKg(n) : null; })();
-  const load = plateKg ? loadBar(plateKg, { collarsKg: collars ? 5 : 0 }) : null;
+  const load = plateKg ? loadBar(plateKg, { barKg: settings.barKg, collarsKg: collars ? 5 : 0, plates: PLATE_SETS[settings.plateSet].plates }) : null;
+
+  // ----- bodyweight log -----
+  const [bwLog, setBwLog] = useState<BodyweightRow[]>([]);
+  const [bwToday, setBwToday] = useState('');
+  useFocusEffect(useCallback(() => { listBodyweight(db).then(setBwLog); }, [db]));
+  async function saveToday() {
+    const n = parseNum(bwToday);
+    if (!n || n <= 0) return;
+    const kg = Math.round(toKg(n) * 100) / 100;
+    await setBodyweight(db, todayIso(), kg);
+    await set('bodyweightKg', kg);
+    setBwToday('');
+    setBwLog(await listBodyweight(db));
+  }
+  const classLimit = IPF_CLASSES[sex].find(c => bw <= c) ?? null;
+  const toLimit = classLimit != null ? classLimit - bw : null;
+  const trend = bwLog.length >= 2 ? bwLog[0].kg - bwLog[Math.min(bwLog.length - 1, 6)].kg : null;
 
   const { weeks, days } = weeksOut(parseIso(settings.meetDate));
 
@@ -74,6 +93,8 @@ export default function MeetScreen() {
         <Eyebrow>Meet day</Eyebrow>
         <Title>{days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}${weeks > 1 ? ` · ${weeks} weeks` : ''} out`}</Title>
       </View>
+
+      <Button title="Meet-day mode: timeline, attempts, running total" onPress={() => router.push('/meet/day')} />
 
       <Card>
         <Eyebrow>You and your meet</Eyebrow>
@@ -153,6 +174,39 @@ export default function MeetScreen() {
       </View>
 
       <View style={{ gap: space.sm }}>
+        <H2>Bodyweight</H2>
+        <Card>
+          <Row style={{ alignItems: 'flex-end' }}>
+            <Field label={`Today (${unit})`} value={bwToday} onChangeText={setBwToday} keyboardType="decimal-pad" placeholder={fmt(bw, 1)} onSubmitEditing={saveToday} returnKeyType="done" />
+            <Button title="Save" onPress={saveToday} style={{ minWidth: 90 }} />
+          </Row>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>Class</Eyebrow>
+              <Num size={22}>{ipfClass(bw, sex)} kg</Num>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>To limit</Eyebrow>
+              <Num size={22} color={toLimit != null && toLimit < 1 ? t.accent : t.ink}>{toLimit != null ? `${fmt(toLimit, 1)} ${unit}` : 'top class'}</Num>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>7-day</Eyebrow>
+              <Num size={22}>{trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 1)}` : '—'}</Num>
+            </View>
+          </Row>
+          {bwLog.length > 0 ? (
+            <Row style={{ flexWrap: 'wrap' }}>
+              {bwLog.slice(0, 10).map(r => (
+                <Pressable key={r.date} onLongPress={() => { deleteBodyweight(db, r.date).then(() => listBodyweight(db).then(setBwLog)); }} style={{ backgroundColor: t.panelAlt, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  <Text style={{ color: t.ink2, fontSize: 12, fontVariant: ['tabular-nums'] }}>{formatDate(r.date).replace(/^\w+,?\s*/, '')} · {fmt(r.kg, 1)}</Text>
+                </Pressable>
+              ))}
+            </Row>
+          ) : <Body muted style={{ fontSize: 13 }}>Weigh in most mornings and the trend will show here. Long-press an entry to delete it.</Body>}
+        </Card>
+      </View>
+
+      <View style={{ gap: space.sm }}>
         <H2>Score a total</H2>
         <Card>
           <Field label={`Total (${unit})`} value={totalText} onChangeText={setTotalText} keyboardType="decimal-pad" placeholder="0" />
@@ -168,23 +222,41 @@ export default function MeetScreen() {
       <View style={{ gap: space.sm }}>
         <H2>Load the bar</H2>
         <Card>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>Plates in your gym</Text>
+            <Segmented<PlateSetId>
+              options={['gym-kg', 'gym-lb', 'ipf']}
+              value={settings.plateSet}
+              onChange={v => { set('plateSet', v); set('barKg', PLATE_SETS[v].barKg); setCollars(v === 'ipf'); }}
+              labels={v => PLATE_SETS[v].label}
+            />
+          </View>
           <Row style={{ alignItems: 'flex-end' }}>
             <Field label={`Weight (${unit})`} value={plateText} onChangeText={setPlateText} keyboardType="decimal-pad" placeholder="0" />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>Bar</Text>
+              <Segmented<number>
+                options={settings.plateSet === 'gym-lb' ? [45 * 0.45359237, 35 * 0.45359237] : [20, 15]}
+                value={settings.barKg}
+                onChange={v => set('barKg', v)}
+                labels={v => settings.plateSet === 'gym-lb' ? `${Math.round(v / 0.45359237)} lb` : `${v} kg`}
+              />
+            </View>
             <Pressable onPress={() => setCollars(c => !c)} accessibilityRole="switch" accessibilityState={{ checked: collars }}
               style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6, backgroundColor: collars ? t.ink : t.panelAlt }}>
-              <Text style={{ color: collars ? t.ground : t.ink, fontWeight: '600' }}>Collars 2.5 + 2.5</Text>
+              <Text style={{ color: collars ? t.ground : t.ink, fontWeight: '600' }}>Collars</Text>
             </Pressable>
           </Row>
           {load ? (
             <>
               <Row style={{ flexWrap: 'wrap', gap: 4 }}>
                 <BarEnd />
-                {load.perSide.map((p, i) => <PlateChip key={i} kg={p.kg} color={p.color} />)}
+                {load.perSide.map((p, i) => <PlateChip key={i} kg={p.kg} color={p.color} label={settings.plateSet === 'gym-lb' ? p.name : undefined} />)}
                 {load.perSide.length === 0 ? <Body muted>Just the bar{collars ? ' and collars' : ''}.</Body> : null}
               </Row>
               <Body muted style={{ fontSize: 13 }}>
-                Per side, 20 kg bar{collars ? ' + collars' : ''}.
-                {load.remainder > 0 ? ` ${fmt(load.remainder, 2)} ${unit} can’t be loaded with IPF plates — nearest is ${fmt(roundTo(plateKg! - load.remainder, 0.5))}.` : ''}
+                Per side, {fmt(settings.barKg, 0)} {unit} bar{collars ? ' + collars' : ''}.
+                {load.remainder > 0.01 ? ` ${fmt(load.remainder, 2)} ${unit} can’t be loaded with these plates — nearest is ${fmt(roundTo(plateKg! - load.remainder, 0.5))}.` : ''}
               </Body>
             </>
           ) : null}
@@ -217,12 +289,12 @@ function BarEnd() {
   return <View style={{ width: 28, height: 10, backgroundColor: t.ink3, borderRadius: 2, alignSelf: 'center' }} />;
 }
 
-function PlateChip({ kg, color }: { kg: number; color: string }) {
+function PlateChip({ kg, color, label }: { kg: number; color: string; label?: string }) {
   const light = color === '#F2F2F2' || color === '#D9A400';
   const h = kg >= 10 ? 54 : kg >= 2.5 ? 40 : 30;
   return (
-    <View style={{ width: kg >= 10 ? 26 : 18, height: h, backgroundColor: color, borderRadius: 4, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.15)' }}>
-      <Text style={{ color: light ? '#1C1B19' : '#fff', fontSize: 10, fontWeight: '700' }}>{kg >= 1 ? kg : ''}</Text>
+    <View style={{ width: kg >= 10 ? 26 : 18, height: h, backgroundColor: color, borderRadius: 4, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+      <Text style={{ color: light ? '#1C1B19' : '#fff', fontSize: 10, fontWeight: '700' }}>{label ?? (kg >= 1 ? kg : '')}</Text>
     </View>
   );
 }

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Dot, Eyebrow, Num, Row, Screen, Title } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
-import { bestByLift, createSession, deleteSession, listSessions, type SessionSummary } from '@/lib/db';
+import { bestByLift, createSession, deleteSession, listSessions, logProgramDay, nextProgramDay, type SessionSummary } from '@/lib/db';
 import { formatDate, labelFor, parseIso } from '@/lib/format';
 import { LIFTS, LIFT_LABEL, weeksOut, type Lift } from '@/lib/math';
 import { useSettings } from '@/lib/settings';
@@ -19,10 +19,12 @@ export default function LogScreen() {
   const { settings, fmt, unit } = useSettings();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [best, setBest] = useState<Record<Lift, number | null>>({ squat: null, bench: null, deadlift: null });
+  const [next, setNext] = useState<Awaited<ReturnType<typeof nextProgramDay>>>(null);
 
   const refresh = useCallback(() => {
     listSessions(db).then(setSessions);
     bestByLift(db).then(setBest);
+    nextProgramDay(db).then(setNext);
   }, [db]);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -32,6 +34,12 @@ export default function LogScreen() {
 
   async function newSession() {
     const id = await createSession(db);
+    router.push({ pathname: '/session/[id]', params: { id: String(id) } });
+  }
+
+  async function logNext() {
+    if (!next) return;
+    const id = await logProgramDay(db, next.day);
     router.push({ pathname: '/session/[id]', params: { id: String(id) } });
   }
 
@@ -65,7 +73,23 @@ export default function LogScreen() {
         {total == null ? <Body muted style={{ fontSize: 13 }}>Log a set of each lift and your e1RMs will appear here.</Body> : null}
       </Card>
 
-      <Button title="Start today’s session" onPress={newSession} />
+      {next ? (
+        <Card style={{ gap: space.sm }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Eyebrow>{next.program.name}</Eyebrow>
+            <Eyebrow>{next.done} / {next.total} done</Eyebrow>
+          </Row>
+          <Text style={{ color: t.ink, fontWeight: '700', fontSize: 17 }}>Week {next.day.week} · {next.day.name}</Text>
+          <Body muted style={{ fontSize: 13 }}>{next.day.sets.map(s => `${labelFor(s.exercise)} ${s.weightKg != null ? `${fmt(s.weightKg)}×${s.reps}` : `${s.sets}×${s.reps}`}`).join(' · ')}</Body>
+          <Row>
+            <Button title="Log this session" onPress={logNext} style={{ flex: 1 }} />
+            <Button title="Preview" kind="ghost" onPress={() => router.push({ pathname: '/program/day/[id]', params: { id: String(next.day.id) } })} />
+          </Row>
+          <Pressable onPress={newSession} accessibilityRole="button" hitSlop={6}><Body muted style={{ fontSize: 13, textAlign: 'center' }}>or start a blank session</Body></Pressable>
+        </Card>
+      ) : (
+        <Button title="Start today’s session" onPress={newSession} />
+      )}
 
       <View style={{ gap: space.sm }}>
         <Eyebrow>Sessions</Eyebrow>

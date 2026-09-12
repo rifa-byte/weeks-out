@@ -5,6 +5,7 @@
  * e1RMs into concrete weights, rounded down to 2.5 kg, so a program is stable once
  * started even if the log changes later.
  */
+import { factorOf, parentOf } from './exercises';
 import { floorTo, type Lift } from './math';
 
 export interface PlannedSet {
@@ -50,8 +51,8 @@ const fullBody: Template = {
     const m = fullBodyWave[(w - 1) % 4];
     const light = { ...m, pct: m.pct - 0.1, rpe: Math.max(5, (m.rpe ?? 7) - 1.5) };
     return [
-      { name: 'Day 1', sets: [{ exercise: S, ...m }, { exercise: B, ...m }, { exercise: 'row', sets: 3, reps: 8 }] },
-      { name: 'Day 2', sets: [{ exercise: D, ...m }, { exercise: B, ...light, note: 'paused' }, { exercise: 'pull-up', sets: 3, reps: 8 }] },
+      { name: 'Day 1', sets: [{ exercise: S, ...m }, { exercise: B, ...m }, { exercise: 'barbell-row', sets: 3, reps: 8 }] },
+      { name: 'Day 2', sets: [{ exercise: D, ...m }, { exercise: 'pause-bench', ...m }, { exercise: 'pull-up', sets: 3, reps: 8 }] },
       { name: 'Day 3', sets: [{ exercise: S, ...light }, { exercise: B, ...m }, { exercise: 'dip', sets: 3, reps: 10 }] },
     ];
   },
@@ -78,9 +79,9 @@ const sbdSplit: Template = {
     const back = (ex: string, reps: number, sets: number) => ({ exercise: ex, sets, reps, pct: t.pct - 0.1, rpe: 7 });
     return [
       { name: 'Squat', sets: [top(S), back(S, 5, 3), { exercise: B, sets: 4, reps: 6, pct: 0.7, rpe: 7 }] },
-      { name: 'Bench', sets: [top(B), back(B, 5, 3), { exercise: 'overhead press', sets: 3, reps: 8 }] },
+      { name: 'Bench', sets: [top(B), back(B, 5, 3), { exercise: 'overhead-press', sets: 3, reps: 8 }] },
       { name: 'Deadlift', sets: [top(D), back(D, 3, 3), { exercise: S, sets: 3, reps: 6, pct: 0.7, rpe: 7 }] },
-      { name: 'Volume', sets: [{ exercise: B, sets: 4, reps: 8, pct: 0.65, rpe: 7 }, { exercise: S, sets: 3, reps: 3, pct: 0.7, rpe: 7, note: 'paused' }, { exercise: 'row', sets: 3, reps: 10 }] },
+      { name: 'Volume', sets: [{ exercise: B, sets: 4, reps: 8, pct: 0.65, rpe: 7 }, { exercise: 'pause-squat', sets: 3, reps: 3, pct: 0.75, rpe: 7 }, { exercise: 'barbell-row', sets: 3, reps: 10 }] },
     ];
   },
 };
@@ -100,8 +101,8 @@ const meetPrep: Template = {
       const back = (ex: string) => ({ exercise: ex, sets: 3, reps: top.reps + 2, pct: top.pct - 0.1, rpe: 7 });
       return [
         { name: 'Squat + bench', sets: [main(S), back(S), main(B), back(B)] },
-        { name: 'Deadlift', sets: [main(D), back(D), { exercise: B, sets: 3, reps: 5, pct: 0.7, rpe: 6, note: 'paused' }] },
-        { name: 'Squat light + bench', sets: [{ exercise: S, sets: 3, reps: 4, pct: 0.72, rpe: 6.5, note: 'paused' }, main(B), back(B), { exercise: 'row', sets: 3, reps: 10 }] },
+        { name: 'Deadlift', sets: [main(D), back(D), { exercise: 'pause-bench', sets: 3, reps: 5, pct: 0.72, rpe: 6 }] },
+        { name: 'Squat light + bench', sets: [{ exercise: 'pause-squat', sets: 3, reps: 4, pct: 0.78, rpe: 6.5 }, main(B), back(B), { exercise: 'barbell-row', sets: 3, reps: 10 }] },
       ];
     }
     if (w <= 7) {
@@ -112,7 +113,7 @@ const meetPrep: Template = {
       const back = (ex: string) => ({ exercise: ex, ...backoff, rpe: 7 });
       return [
         { name: 'Squat + bench singles', sets: [one(S), back(S), one(B), back(B)] },
-        { name: 'Deadlift single', sets: [one(D), back(D), { exercise: B, sets: 3, reps: 3, pct: 0.75, rpe: 6.5, note: 'paused' }] },
+        { name: 'Deadlift single', sets: [one(D), back(D), { exercise: 'pause-bench', sets: 3, reps: 3, pct: 0.78, rpe: 6.5 }] },
         { name: 'Bench + light squat', sets: [one(B), back(B), { exercise: S, sets: 2, reps: 2, pct: 0.75, rpe: 6.5 }] },
       ];
     }
@@ -139,26 +140,36 @@ export function resolveProgram(template: Template, bests: Bests, step = 2.5): Re
   const out: ResolvedDay[] = [];
   for (let w = 1; w <= template.weeks; w++) {
     template.week(w).forEach((d, i) => {
-      out.push({
-        week: w,
-        day: i + 1,
-        name: d.name,
-        sets: d.sets.map(s => {
-          const best = bests[s.exercise as Lift];
-          const weightKg = s.pct != null && best ? Math.max(20, floorTo(best * s.pct, step)) : null;
-          return { ...s, weightKg };
-        }),
-      });
+      out.push({ week: w, day: i + 1, name: d.name, sets: d.sets.map(s => resolveSet(s, bests, step)) });
     });
   }
   return out;
+}
+
+/**
+ * Weight for one planned set: parent-lift e1RM × pct × the variation's strength factor,
+ * floored to the plate step. Accessories (no parent, or no pct) get null.
+ */
+export function resolveSet(s: PlannedSet, bests: Bests, step = 2.5): ResolvedSet {
+  const parent = parentOf(s.exercise);
+  const best = parent ? bests[parent] : null;
+  const weightKg = s.pct != null && best ? Math.max(20, floorTo(best * s.pct * factorOf(s.exercise), step)) : null;
+  return { ...s, weightKg };
+}
+
+/** Swap the movement of a planned set, keeping sets/reps/RPE and re-deriving the weight. */
+export function swapExercise(s: PlannedSet, newExerciseId: string, bests: Bests, step = 2.5): ResolvedSet {
+  const next: PlannedSet = { ...s, exercise: newExerciseId };
+  // If the new movement has no parent lift, a percentage means nothing — drop it.
+  if (!parentOf(newExerciseId)) delete next.pct;
+  return resolveSet(next, bests, step);
 }
 
 /** Which lifts a template needs an e1RM for. */
 export function liftsNeeded(template: Template): Lift[] {
   const need = new Set<Lift>();
   for (let w = 1; w <= template.weeks; w++) {
-    for (const d of template.week(w)) for (const s of d.sets) if (s.pct != null && (s.exercise === S || s.exercise === B || s.exercise === D)) need.add(s.exercise as Lift);
+    for (const d of template.week(w)) for (const s of d.sets) { const p = parentOf(s.exercise); if (s.pct != null && p) need.add(p); }
   }
   return [...need];
 }
