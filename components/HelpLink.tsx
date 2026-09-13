@@ -4,7 +4,7 @@ import { Pressable, Text } from 'react-native';
 import { useTheme } from '@/constants/theme';
 
 /** "How this works" link for a screen header. */
-export function HelpLink({ topic }: { topic: 'log' | 'session' | 'programs' | 'meet' | 'meetday' }) {
+export function HelpLink({ topic }: { topic: 'log' | 'session' | 'programs' | 'rank' | 'meet' | 'meetday' }) {
   const router = useRouter();
   const t = useTheme();
   return (

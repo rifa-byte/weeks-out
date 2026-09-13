@@ -1,6 +1,6 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -35,6 +35,8 @@ export default function ProgramsScreen() {
   const [program, setProgram] = useState<ProgramRow | null>(null);
   const [days, setDays] = useState<ProgramDay[]>([]);
   const [view, setView] = useState<View_ | null>(null);      // null = not chosen yet → follows whether a program exists
+  const { view: wanted } = useLocalSearchParams<{ view?: string }>();   // e.g. Rank tab → "Find a coach"
+  useEffect(() => { if (wanted === 'make' || wanted === 'find' || wanted === 'coaches') setView(wanted); }, [wanted]);
 
   const refresh = useCallback(async () => {
     const p = await activeProgram(db);

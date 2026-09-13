@@ -36,6 +36,7 @@ app/
   (tabs)/index.tsx    Log — weeks-out header, best e1RMs, sessions list
   (tabs)/meet.tsx     Meet — profile, attempt planner + warm-ups, bodyweight log, scoring, plate loader
   meet/day.tsx        Meet-day mode: timeline + platform attempts
+  (tabs)/rank.tsx     Rank — Where you stand (OpenPowerlifting) / Where you fail (Fail Map)
   (tabs)/programs.tsx Programs — pick a template, build your own, use a shared code, track the active program, share it
   program/new.tsx     build-your-own: name, weeks, days
   program/import.tsx  paste a share code
@@ -59,6 +60,8 @@ lib/
   picker.ts           callback bridge for the picker route
   share.ts            share codes: WO1. + base64url(compact JSON) (unit-tested)
   explore.ts          the curated Find / Coaches list — add programs and coaches here
+  opl.ts              OpenPowerlifting client: name search, ladders, percentile / rank / placing maths
+  failmap.ts          the Fail Map: positions, aggregation, fixes (cues, variations, accessories)
   meetday.ts          meet-day timeline and attempt rules (unit-tested)
   prep.ts             pre-session stretches, band work and holds per lift (unit-tested)
   db.ts               SQLite schema + queries
@@ -80,6 +83,7 @@ constants/theme.ts    palette (light + dark), plate colours, spacing
 - Sprint 8 (done): meet prep is generated for any length (1–24 weeks) and 2–6 days a week with block periodization scaled to the time available (build → strength → peak → taper, deload in long builds), day splits modelled on elite programs
 - Sprint 9 (done): meet mode / general mode chosen on first launch and switchable; Programs = “Make me a program” (8-question questionnaire → AI-written program, validated, with built-in fallback) or “Find a program” (Explore with goal / level / days filters, coach programs link to coaching); share codes carry tags
 - Sprint 10 (done): first launch = “meet or not?” then straight into the questionnaire, nothing else (skippable; keyed on `setupDone`); Explore folded into Programs as Mine / Make / Find / Coaches; tabs are now Log + Programs (+ Meet in meet mode); tour moved to Help
+- Sprint 11 (done): the Rank tab — “Where you stand” (search any lifter on OpenPowerlifting, compare lift by lift, see where your total lands in your class worldwide or per country, recent meets and where you’d have placed) and “Where you fail” (the Fail Map: tap where a rep stuck when logging → sticking point per lift, why, cues, variations, accessories, and a nudge to a coach)
 - Next: app icon; store screenshots; turn the AI on (see below); friends' feedback via Issues (see CONTRIBUTING.md)
 - December: accounts (Supabase), publish programs to Find from the app, coach profiles + applications, paid programs (in-app purchase)
 - Then: Google Play closed test (12 testers, 14 days), TestFlight, launch on meet day
@@ -120,3 +124,17 @@ eas submit -p ios                        # to TestFlight / App Store
 - **Attempts**: opener ≈ 91 % of best rounded down to 2.5 kg, second ≈ 96 %, third ≈ 101 %, always ascending.
 - **Warm-ups**: bar ×10, then 40/55/70/80/90 % of the opener.
 - **Plates**: IPF calibrated set (25/20/15/10/5/2.5/1.25/0.5/0.25), 20 kg bar, 2.5 kg collars each side.
+
+## OpenPowerlifting inside the app
+
+OpenPowerlifting releases every result to the public domain and asks people to use the bulk download rather than scrape the site. `scripts/opl-build.mjs` does that: it downloads the bulk CSV once, streams it, and writes small static JSON files to `public/opl/` (name-search shards, and per-class “ladders” with a histogram of totals, the top 20, and recent meets per country). The app fetches those files straight from GitHub (`EXPO_PUBLIC_OPL_URL` overrides the base URL), so there is no server and nothing to pay for.
+
+To publish or refresh the index (a few minutes; needs Node 18+):
+
+```
+npm run opl:build            # IPF affiliates, lifters active since 2016 (default)
+npm run opl:build -- --source all      # every federation (bigger)
+git add public/opl; git commit -m "Refresh OpenPowerlifting index"; git push
+```
+
+Until `public/opl/meta.json` exists on `main`, the Rank tab shows a “not switched on yet” card. The attribution line in the app is required-by-courtesy: *Data from the OpenPowerlifting project, openpowerlifting.org.*

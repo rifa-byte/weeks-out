@@ -20,7 +20,7 @@ const STEPS = [
   {
     eyebrow: 'Weeks Out',
     title: 'Log your lifts. Follow a program. Find a coach.',
-    body: 'Two tabs at the bottom: Log and Programs (three if you are prepping for a meet). Everything you log stays on your phone — no account needed.',
+    body: 'Three tabs at the bottom: Log, Programs, Rank (plus Meet if you are prepping for one). Everything you log stays on your phone — no account needed.',
   },
   {
     eyebrow: 'Log tab',
@@ -31,6 +31,11 @@ const STEPS = [
     eyebrow: 'Programs tab',
     title: 'Make one, find one, or find a coach.',
     body: '“Make” asks eight quick questions and writes a program for you. “Find” shows programs other lifters and coaches have shared. “Coaches” lists people taking clients — message them straight from their card. Whatever you pick, the Log tab then shows your next session: one tap to log it.',
+  },
+  {
+    eyebrow: 'Rank tab',
+    title: 'Where you stand. Where you fail.',
+    body: 'Search any lifter on OpenPowerlifting and see their best meet next to your numbers. See where your total lands in your class — world or your country. And the Fail Map: tap where a rep stuck when you log it, and this tab shows your sticking point and what fixes it.',
   },
   {
     eyebrow: 'Meet tab',

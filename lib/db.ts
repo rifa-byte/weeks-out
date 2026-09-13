@@ -1,4 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { parentOf } from './exercises';
+import type { FailEvent, FailPos } from './failmap';
 import { e1rm, type Lift, type PlateSetId, type Sex } from './math';
 import { resolveProgram, type Bests, type ResolvedSet, type Template } from './programs';
 import type { SharedProgram } from './share';
@@ -55,11 +57,16 @@ export async function migrate(db: SQLiteDatabase) {
       kg REAL NOT NULL
     );
   `);
+  // Sprint 11: the Fail Map. Columns added to an existing table, so guard with PRAGMA.
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sets)');
+  const have = new Set(cols.map(c => c.name));
+  if (!have.has('fail_at')) await db.execAsync('ALTER TABLE sets ADD COLUMN fail_at TEXT');          // 'bottom' | 'mid' | 'top' | NULL
+  if (!have.has('missed')) await db.execAsync('ALTER TABLE sets ADD COLUMN missed INTEGER NOT NULL DEFAULT 0');
 }
 
 // ---------- types ----------
 export interface Session { id: number; date: string; notes: string }
-export interface SetRow { id: number; session_id: number; exercise: string; weight_kg: number; reps: number; rpe: number | null; e1rm: number }
+export interface SetRow { id: number; session_id: number; exercise: string; weight_kg: number; reps: number; rpe: number | null; e1rm: number; fail_at: FailPos | null; missed: number }
 export interface SessionSummary extends Session { set_count: number; top_lift: string | null; top_e1rm: number | null }
 
 export interface Settings {
@@ -147,12 +154,28 @@ export async function listSets(db: SQLiteDatabase, sessionId: number): Promise<S
   return db.getAllAsync<SetRow>('SELECT * FROM sets WHERE session_id = ? ORDER BY id ASC', sessionId);
 }
 
-export async function addSet(db: SQLiteDatabase, s: { sessionId: number; exercise: string; weightKg: number; reps: number; rpe: number | null }) {
+export async function addSet(db: SQLiteDatabase, s: { sessionId: number; exercise: string; weightKg: number; reps: number; rpe: number | null; failAt?: FailPos | null; missed?: boolean }) {
   const est = e1rm(s.weightKg, s.reps, s.rpe);
   await db.runAsync(
-    'INSERT INTO sets(session_id, exercise, weight_kg, reps, rpe, e1rm) VALUES (?, ?, ?, ?, ?, ?)',
-    s.sessionId, s.exercise, s.weightKg, s.reps, s.rpe, est,
+    'INSERT INTO sets(session_id, exercise, weight_kg, reps, rpe, e1rm, fail_at, missed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    s.sessionId, s.exercise, s.weightKg, s.reps, s.rpe, est, s.failAt ?? null, s.missed ? 1 : 0,
   );
+}
+
+/** Sets that stuck or missed on a competition lift or one of its variations, newest first, within the window. */
+export async function listFailEvents(db: SQLiteDatabase, sinceIso: string): Promise<FailEvent[]> {
+  const rows = await db.getAllAsync<{ exercise: string; weight_kg: number; reps: number; rpe: number | null; fail_at: FailPos | null; missed: number; date: string }>(
+    `SELECT s.exercise, s.weight_kg, s.reps, s.rpe, s.fail_at, s.missed, se.date
+       FROM sets s JOIN sessions se ON se.id = s.session_id
+      WHERE (s.fail_at IS NOT NULL OR s.missed = 1) AND se.date >= ?
+      ORDER BY se.date DESC, s.id DESC`, sinceIso);
+  const out: FailEvent[] = [];
+  for (const r of rows) {
+    const lift = parentOf(r.exercise);
+    if (!lift) continue;
+    out.push({ lift, pos: r.fail_at ?? 'mid', missed: r.missed === 1, date: r.date, exercise: r.exercise, weightKg: r.weight_kg, reps: r.reps, rpe: r.rpe });
+  }
+  return out;
 }
 
 export async function deleteSet(db: SQLiteDatabase, id: number) {

@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { Body, Button, Card, Eyebrow, H2, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 
-type Topic = 'log' | 'session' | 'programs' | 'meet' | 'meetday';
+type Topic = 'log' | 'session' | 'programs' | 'rank' | 'meet' | 'meetday';
 
 const HELP: Record<Topic, { title: string; sections: { h: string; p: string }[] }> = {
   log: {
@@ -40,6 +40,18 @@ const HELP: Record<Topic, { title: string; sections: { h: string; p: string }[] 
       { h: 'Mine → change a day', p: 'Open the day and tap “Change this day”. Swap a movement for a variation, add an accessory, remove one, or change sets and reps. Weights re-calculate.' },
       { h: 'Mine → share it', p: 'Tap “Share this program” at the bottom. It makes a code you can send anywhere. Your friend pastes it under Programs → Make → Use a shared code and the weights are worked out from their bests.' },
       { h: 'Stop', p: 'Tap End program at the bottom of Mine. Your logged sessions stay.' },
+    ],
+  },
+  rank: {
+    title: 'Rank',
+    sections: [
+      { h: 'Two halves', p: '“Where you stand” compares you with every lifter on OpenPowerlifting. “Where you fail” is your Fail Map — where your reps die and what fixes it. Tap the switch at the top.' },
+      { h: 'Your numbers', p: 'Squat, bench and deadlift are your best estimated 1RMs from the log; the total is the three added up. DOTS and IPF GL use the bodyweight and sex from the Meet tab. Type a different total to test a goal.' },
+      { h: 'Search any lifter', p: 'Type a name (surname alone works). Tap a result and you get their best meet next to your numbers, lift by lift, with the gap. Green = you are ahead.' },
+      { h: 'Where your total lands', p: 'Pick World or a country and your weight class. It shows the top-percent your total is in, your rank among everyone who competed in that class in the last two years, the top 10, and — for a country — recent meets and where you would have placed.' },
+      { h: 'Logging a sticking point', p: 'In a session, after you tap the RPE, tap where the bar slowed or stopped (out of the hole, halfway, lockout) and “Missed a rep” if you missed. Takes one tap. Clean sets need nothing.' },
+      { h: 'Reading the Fail Map', p: 'Each lift gets a bar per position. The longest bar is your sticking point; under it: what it usually means, three cues for the next set, variations that attack it (with their rough % of your main lift), and muscles to build. If it keeps happening, the app suggests a coach.' },
+      { h: 'Where the data comes from', p: 'OpenPowerlifting’s public-domain results, rebuilt into a small index every so often. It is not live: a meet from last weekend may take a while to appear.' },
     ],
   },
   meet: {

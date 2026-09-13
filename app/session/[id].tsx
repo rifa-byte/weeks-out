@@ -11,6 +11,7 @@ import { Body, Button, Card, Divider, Dot, Eyebrow, Field, Hint, Num, Row, Scree
 import { liftColor, space, useTheme } from '@/constants/theme';
 import { addSet, bestFor, deleteSet, getSession, isPr, lastTimeFor, listSets, todayIso, updateSessionNotes, type LastTime, type SetRow } from '@/lib/db';
 import { exerciseById, parentOf } from '@/lib/exercises';
+import { FAIL_LABEL, FAIL_POSITIONS, type FailPos } from '@/lib/failmap';
 import { formatDate, labelFor, parseNum } from '@/lib/format';
 import { e1rm, LIFTS, LIFT_LABEL, RPE_VALUES, type Lift } from '@/lib/math';
 import { registerPick } from '@/lib/picker';
@@ -32,6 +33,8 @@ export default function SessionScreen() {
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [rpe, setRpe] = useState<number | null>(8);
+  const [failAt, setFailAt] = useState<FailPos | null>(null);   // where the rep stuck (Fail Map)
+  const [missed, setMissed] = useState(false);
   const [restStart, setRestStart] = useState<number | null>(null);
 
   const [last, setLast] = useState<LastTime | null>(null);
@@ -66,7 +69,8 @@ export default function SessionScreen() {
 
   async function add() {
     if (!canAdd || !wKg || !r) return;
-    await addSet(db, { sessionId, exercise, weightKg: wKg, reps: Math.round(r), rpe });
+    await addSet(db, { sessionId, exercise, weightKg: wKg, reps: Math.round(r), rpe, failAt, missed });
+    setFailAt(null); setMissed(false);
     setRestStart(Date.now());
     await refresh();
   }
@@ -82,6 +86,7 @@ export default function SessionScreen() {
     setWeight(fmt(s.weight_kg));
     setReps(String(s.reps));
     setRpe(s.rpe);
+    setFailAt(s.fail_at ?? null); setMissed(s.missed === 1);
     await deleteSet(db, s.id);
     await refresh();
   }
@@ -162,6 +167,24 @@ export default function SessionScreen() {
               labels={v => (v === 0 ? 'none' : String(v))}
             />
           </View>
+          {parentOf(exercise) ? (
+            <View style={{ gap: 6 }}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Body style={{ fontSize: 14, fontWeight: '700' }}>Did it stick anywhere? <Text style={{ color: t.ink3, fontWeight: '400' }}>(optional)</Text></Body>
+                <Pressable onPress={() => setMissed(m => !m)} accessibilityRole="checkbox" accessibilityState={{ checked: missed }} hitSlop={6}
+                  style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: missed ? t.danger : t.panelAlt }}>
+                  <Text style={{ color: missed ? '#fff' : t.ink2, fontSize: 12, fontWeight: '700' }}>{missed ? '✓ Missed a rep' : 'Missed a rep?'}</Text>
+                </Pressable>
+              </Row>
+              <Segmented<FailPos | 'none'>
+                options={['none', ...FAIL_POSITIONS]}
+                value={failAt ?? 'none'}
+                onChange={v => setFailAt(v === 'none' ? null : v)}
+                labels={v => (v === 'none' ? 'Clean' : FAIL_LABEL[parentOf(exercise)!][v])}
+              />
+              <Body muted style={{ fontSize: 12 }}>Tap where the bar slowed or stopped. The Rank tab turns this into your Fail Map.</Body>
+            </View>
+          ) : null}
           <Step n={4}>Tap Add set</Step>
           <Row style={{ justifyContent: 'space-between' }}>
             <View>
@@ -191,7 +214,7 @@ export default function SessionScreen() {
                           {labelFor(s.exercise)}{s.pr ? <Text style={{ color: t.accent }}>  PR</Text> : null}
                         </Text>
                         <Body muted style={{ fontSize: 13 }}>
-                          {fmt(s.weight_kg)} {unit} × {s.reps}{s.rpe != null ? ` @ ${s.rpe}` : ''} · e1RM {fmt(s.e1rm)}
+                          {fmt(s.weight_kg)} {unit} × {s.reps}{s.rpe != null ? ` @ ${s.rpe}` : ''} · e1RM {fmt(s.e1rm)}{s.fail_at && parentOf(s.exercise) ? ` · ${s.missed ? 'missed' : 'stuck'} ${FAIL_LABEL[parentOf(s.exercise)!][s.fail_at].toLowerCase()}` : s.missed ? ' · missed' : ''}
                         </Body>
                       </View>
                     </Pressable>
