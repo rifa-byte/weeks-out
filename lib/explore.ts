@@ -38,22 +38,8 @@ export interface ExploreCoach {
 }
 
 export const EXPLORE_PROGRAMS: ExploreProgram[] = [
-  {
-    id: 'p-full-body', name: '3-day full body', author: 'Weeks Out', level: 'beginner', goal: 'strength',
-    blurb: 'Squat, bench and deadlift every week at rising intensity, then a deload. The sensible first program.',
-    weeks: 4, daysPerWeek: 3, price: 'free', template: 'full-body-3',
-  },
-  {
-    id: 'p-sbd-split', name: '4-day SBD split', author: 'Weeks Out', level: 'intermediate', goal: 'strength',
-    blurb: 'One heavy top set per lift with back-offs, plus volume days. For building between meets.',
-    weeks: 4, daysPerWeek: 4, price: 'free', template: 'sbd-split-4',
-  },
-  {
-    id: 'p-meet-prep', name: 'Meet prep (any length, 2–6 days)', author: 'Weeks Out', level: 'intermediate', goal: 'meet-prep',
-    blurb: 'Build → strength → peak → taper, scaled to your weeks out and the days you can train. This one is the 8-week, 3-day version; set your own in Programs.',
-    weeks: 8, daysPerWeek: 3, price: 'free', template: 'meet-prep-8',
-  },
-];
+  // Coach-made programs go here (share code in `code`, Instagram in `coach`). Well-known programs come from lib/famous.ts.
+]
 
 export const EXPLORE_COACHES: ExploreCoach[] = [
   // Example entry — replace with real coaches via PR / Issue.

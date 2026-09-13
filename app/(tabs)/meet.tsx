@@ -4,14 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DateField } from '@/components/DateField';
+import { BarLoader } from '@/components/BarLoader';
 import { HelpLink } from '@/components/HelpLink';
 import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Hint, Num, Row, Screen, Segmented, Title } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
 import { bestByLift, deleteBodyweight, listBodyweight, setBodyweight, todayIso, type BodyweightRow } from '@/lib/db';
 import { formatDate, parseIso, parseNum } from '@/lib/format';
 import {
-  dots, ipfClass, ipfGL, IPF_CLASSES, LIFTS, LIFT_LABEL, loadBar, PLATE_SETS, planAttempts, roundTo, warmups, weeksOut, wilks,
-  type Lift, type PlateSetId, type Sex,
+  dots, ipfClass, ipfGL, IPF_CLASSES, LIFTS, LIFT_LABEL, planAttempts, warmups, weeksOut, wilks,
+  type Lift, type Sex,
 } from '@/lib/math';
 import { useSettings } from '@/lib/settings';
 
@@ -32,10 +34,6 @@ export default function MeetScreen() {
   function commitBw() {
     const n = parseNum(bwText);
     if (n && n > 0) set('bodyweightKg', Math.round(toKg(n) * 100) / 100);
-  }
-  function commitDate() {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(meetDate) && !Number.isNaN(parseIso(meetDate).getTime())) set('meetDate', meetDate);
-    else setMeetDate(settings.meetDate);
   }
 
   // ----- attempts -----
@@ -62,12 +60,6 @@ export default function MeetScreen() {
   const totalKg = (() => { const n = parseNum(totalText); return n && n > 0 ? toKg(n) : null; })();
   const bw = settings.bodyweightKg;
   const sex: Sex = settings.sex;
-
-  // ----- plates -----
-  const [plateText, setPlateText] = useState('');
-  const [collars, setCollars] = useState(settings.plateSet === 'ipf');
-  const plateKg = (() => { const n = parseNum(plateText); return n && n > 0 ? toKg(n) : null; })();
-  const load = plateKg ? loadBar(plateKg, { barKg: settings.barKg, collarsKg: collars ? 5 : 0, plates: PLATE_SETS[settings.plateSet].plates }) : null;
 
   // ----- bodyweight log -----
   const [bwLog, setBwLog] = useState<BodyweightRow[]>([]);
@@ -108,7 +100,7 @@ export default function MeetScreen() {
         <Body muted style={{ fontSize: 12 }}>Tap a box to edit. It saves when you tap away.</Body>
         <Row style={{ alignItems: 'flex-end' }}>
           <Field label="Meet" value={meetName} onChangeText={setMeetName} onBlur={() => set('meetName', meetName.trim() || 'My meet')} placeholder="Meet name" />
-          <Field label="Date (yyyy-mm-dd)" value={meetDate} onChangeText={setMeetDate} onBlur={commitDate} placeholder="2026-11-07" autoCapitalize="none" keyboardType="numbers-and-punctuation" />
+          <DateField label="Date" value={meetDate} onChange={d => { setMeetDate(d); set('meetDate', d); }} />
         </Row>
         <Row style={{ alignItems: 'flex-end' }}>
           <Field label={`Bodyweight (${unit})`} value={bwText} onChangeText={setBwText} onBlur={commitBw} keyboardType="decimal-pad" />
@@ -229,53 +221,7 @@ export default function MeetScreen() {
 
       <View style={{ gap: space.sm }}>
         <H2>Load the bar</H2>
-        <Card>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>Plates in your gym</Text>
-            <Segmented<PlateSetId>
-              options={['gym-kg', 'gym-lb', 'ipf']}
-              value={settings.plateSet}
-              onChange={v => { set('plateSet', v); set('barKg', PLATE_SETS[v].barKg); setCollars(v === 'ipf'); }}
-              labels={v => PLATE_SETS[v].label}
-            />
-          </View>
-          <Row style={{ alignItems: 'flex-end' }}>
-            <Field label={`Weight (${unit})`} value={plateText} onChangeText={setPlateText} keyboardType="decimal-pad" placeholder="0" />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>Bar</Text>
-              <Segmented<number>
-                options={settings.plateSet === 'gym-lb' ? [45 * 0.45359237, 35 * 0.45359237] : [20, 15]}
-                value={settings.barKg}
-                onChange={v => set('barKg', v)}
-                labels={v => settings.plateSet === 'gym-lb' ? `${Math.round(v / 0.45359237)} lb` : `${v} kg`}
-              />
-            </View>
-            <Pressable onPress={() => setCollars(c => !c)} accessibilityRole="switch" accessibilityState={{ checked: collars }}
-              style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6, backgroundColor: collars ? t.ink : t.panelAlt }}>
-              <Text style={{ color: collars ? t.ground : t.ink, fontWeight: '600' }}>Collars</Text>
-            </Pressable>
-          </Row>
-          {load ? (
-            <>
-              <Row style={{ flexWrap: 'wrap', gap: 4 }}>
-                <BarEnd />
-                {load.perSide.map((p, i) => <PlateChip key={i} kg={p.kg} color={p.color} label={settings.plateSet === 'gym-lb' ? p.name : undefined} />)}
-                {load.perSide.length === 0 ? <Body muted>Just the bar{collars ? ' and collars' : ''}.</Body> : null}
-              </Row>
-              <Body muted style={{ fontSize: 13 }}>
-                Per side, {fmt(settings.barKg, 0)} {unit} bar{collars ? ' + collars' : ''}.
-                {load.remainder > 0.01 ? ` ${fmt(load.remainder, 2)} ${unit} can’t be loaded with these plates — nearest is ${fmt(roundTo(plateKg! - load.remainder, 0.5))}.` : ''}
-              </Body>
-            </>
-          ) : null}
-          <Row style={{ flexWrap: 'wrap' }}>
-            {[60, 100, 140, 180, 220].map(k => (
-              <Pressable key={k} onPress={() => setPlateText(fmt(k, 0))} style={{ backgroundColor: t.panelAlt, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-                <Text style={{ color: t.ink2, fontSize: 13 }}>{fmt(k, 0)}</Text>
-              </Pressable>
-            ))}
-          </Row>
-        </Card>
+        <Card><BarLoader /></Card>
       </View>
 
       <Button title={fromKg(1) === 1 ? 'Switch to lb' : 'Switch to kg'} kind="ghost" onPress={() => set('units', settings.units === 'kg' ? 'lb' : 'kg')} />
@@ -292,17 +238,3 @@ function ScoreTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BarEnd() {
-  const t = useTheme();
-  return <View style={{ width: 28, height: 10, backgroundColor: t.ink3, borderRadius: 2, alignSelf: 'center' }} />;
-}
-
-function PlateChip({ kg, color, label }: { kg: number; color: string; label?: string }) {
-  const light = color === '#F2F2F2' || color === '#D9A400';
-  const h = kg >= 10 ? 54 : kg >= 2.5 ? 40 : 30;
-  return (
-    <View style={{ width: kg >= 10 ? 26 : 18, height: h, backgroundColor: color, borderRadius: 4, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
-      <Text style={{ color: light ? '#1C1B19' : '#fff', fontSize: 10, fontWeight: '700' }}>{label ?? (kg >= 1 ? kg : '')}</Text>
-    </View>
-  );
-}

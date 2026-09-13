@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Button, Eyebrow, Field, Row, Title } from '@/components/ui';
+import { DateField } from '@/components/DateField';
+import { Body, Button, Eyebrow, Row, Title } from '@/components/ui';
 import { space, useTheme } from '@/constants/theme';
 import { setJson } from '@/lib/db';
 import { parseIso } from '@/lib/format';
@@ -82,7 +83,7 @@ export default function WelcomeScreen() {
             <Body style={{ fontSize: 17, lineHeight: 25 }}>Tap one. You can change it any time from the Log tab.</Body>
             <Button title={mode === 'meet' ? '✓ Yes — I have a meet coming' : 'Yes — I have a meet coming'} kind={mode === 'meet' ? 'primary' : 'ghost'} onPress={() => setMode('meet')} />
             <Button title={mode === 'general' ? '✓ No — I just want to train' : 'No — I just want to train'} kind={mode === 'general' ? 'primary' : 'ghost'} onPress={() => setMode('general')} />
-            {mode === 'meet' ? <Field label="Meet date (yyyy-mm-dd)" value={date} onChangeText={setDate} placeholder="2026-11-07" autoCapitalize="none" keyboardType="numbers-and-punctuation" /> : null}
+            {mode === 'meet' ? <DateField label="Meet date" value={date} onChange={setDate} minimumDate={new Date()} /> : null}
           </View>
           <View style={{ gap: space.sm }}>
             <Button title="Continue" onPress={chooseMode} disabled={mode === 'meet' && !validDate} style={{ opacity: mode === 'meet' && !validDate ? 0.4 : 1 }} />

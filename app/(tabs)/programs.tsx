@@ -9,72 +9,104 @@ import { Body, Button, Card, Eyebrow, H2, Hint, Row, Screen, Segmented, Title } 
 import { space, useTheme } from '@/constants/theme';
 import { activeProgram, endProgram, exportProgram, getJson, listProgramDays, setJson, type ProgramDay, type ProgramRow } from '@/lib/db';
 import { EXPLORE_COACHES, EXPLORE_PROGRAMS, GOAL_LABEL, LEVEL_LABEL, SUBMIT_URL, type ExploreProgram } from '@/lib/explore';
+import { FAMOUS } from '@/lib/famous';
+import { DEFAULT_ANSWERS, generateProgram } from '@/lib/generator';
 import { labelFor } from '@/lib/format';
 import { PHASE_LABEL, phaseOfWeek } from '@/lib/meetprep';
 import { setPendingTemplate } from '@/lib/pending';
-import { TEMPLATES } from '@/lib/programs';
 import { useSettings } from '@/lib/settings';
 import { decodeProgram, encodeProgram, toTemplate } from '@/lib/share';
 
 /**
- * Programs = one tab for everything program-shaped:
- *   Mine    — the program you are following (only when you have one)
- *   Make    — the questionnaire, build your own, shared codes, ready-made templates
- *   Find    — programs other lifters and coaches have shared, with filters
- *   Coaches — people taking clients
+ * Programs = one tab for everything program-shaped.
+ *   While a program is running, the tab IS that program (plus a way to reach a coach).
+ *   Otherwise: Make (questionnaire, spreadsheet import, build your own, shared code, quick ready-made 2–6 days),
+ *   Find (well-known programs + coach-made ones), Coaches (people taking clients).
  */
-type View_ = 'mine' | 'make' | 'find' | 'coaches';
-const LABEL: Record<View_, string> = { mine: 'Mine', make: 'Make', find: 'Find', coaches: 'Coaches' };
+type View_ = 'make' | 'find' | 'coaches';
+const LABEL: Record<View_, string> = { make: 'Make', find: 'Find', coaches: 'Coaches' };
 
 export default function ProgramsScreen() {
   const db = useSQLiteContext();
-  const router = useRouter();
-  const t = useTheme();
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
-  const [program, setProgram] = useState<ProgramRow | null>(null);
+  const [program, setProgram] = useState<ProgramRow | null | 'loading'>('loading');
   const [days, setDays] = useState<ProgramDay[]>([]);
-  const [view, setView] = useState<View_ | null>(null);      // null = not chosen yet → follows whether a program exists
-  const { view: wanted } = useLocalSearchParams<{ view?: string }>();   // e.g. Rank tab → "Find a coach"
-  useEffect(() => { if (wanted === 'make' || wanted === 'find' || wanted === 'coaches') setView(wanted); }, [wanted]);
+  const [view, setView] = useState<View_>('make');
+  const [coachesOverlay, setCoachesOverlay] = useState(false);          // "Find a coach" while a program is running
+  const { view: wanted, t: stamp } = useLocalSearchParams<{ view?: string; t?: string }>();   // e.g. Rank tab → "Find a coach"
+  useEffect(() => {
+    if (wanted === 'coaches') { setView('coaches'); setCoachesOverlay(true); }
+    else if (wanted === 'make' || wanted === 'find') { setView(wanted); setCoachesOverlay(false); }
+  }, [wanted, stamp]);
 
   const refresh = useCallback(async () => {
     const p = await activeProgram(db);
     setProgram(p);
     setDays(p ? await listProgramDays(db, p.id) : []);
-    setView(v => (v === 'mine' && !p ? 'make' : v));
+    if (!p) setCoachesOverlay(false);
   }, [db]);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  const options: View_[] = program ? ['mine', 'make', 'find', 'coaches'] : ['make', 'find', 'coaches'];
-  const current: View_ = view ?? (program ? 'mine' : 'make');
+  if (program === 'loading') return <Screen style={{ paddingTop: insets.top + space.lg }}><View /></Screen>;
+
+  // A program is running: the page IS the program. Nothing else to wander into, except a coach when asked for.
+  if (program && !coachesOverlay) {
+    const done = days.filter(d => d.session_id != null).length;
+    return (
+      <Screen style={{ paddingTop: insets.top + space.lg }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Eyebrow>{done} of {days.length} sessions done</Eyebrow>
+            <Title>{program.name}</Title>
+          </View>
+          <HelpLink topic="programs" />
+        </Row>
+        <Mine program={program} days={days} refresh={refresh} onFindCoach={() => setCoachesOverlay(true)} />
+      </Screen>
+    );
+  }
+
+  if (program && coachesOverlay) {
+    return (
+      <Screen style={{ paddingTop: insets.top + space.lg }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Eyebrow>Taking clients</Eyebrow>
+            <Title>Coaches</Title>
+          </View>
+          <HelpLink topic="programs" />
+        </Row>
+        <Button title="‹ Back to my program" kind="ghost" onPress={() => setCoachesOverlay(false)} />
+        <Coaches />
+      </Screen>
+    );
+  }
 
   return (
     <Screen style={{ paddingTop: insets.top + space.lg }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
-          <Eyebrow>{program ? `${days.filter(d => d.session_id != null).length} of ${days.length} sessions done` : 'Make one · find one · find a coach'}</Eyebrow>
-          <Title>{program && current === 'mine' ? program.name : 'Programs'}</Title>
+          <Eyebrow>Make one · find one · find a coach</Eyebrow>
+          <Title>Programs</Title>
         </View>
         <HelpLink topic="programs" />
       </Row>
 
-      <Segmented<View_> options={options} value={current} onChange={setView} labels={v => LABEL[v]} />
+      <Segmented<View_> options={['make', 'find', 'coaches']} value={view} onChange={setView} labels={v => LABEL[v]} />
 
-      {current === 'mine' && program ? <Mine program={program} days={days} refresh={refresh} /> : null}
-      {current === 'make' ? <Make hasProgram={!!program} /> : null}
-      {current === 'find' ? <Find /> : null}
-      {current === 'coaches' ? <Coaches /> : null}
+      {view === 'make' ? <Make /> : null}
+      {view === 'find' ? <Find /> : null}
+      {view === 'coaches' ? <Coaches /> : null}
 
-      {current === 'make' && settings.mode === 'meet' ? <Hint style={{ textAlign: 'center' }}>Meet mode: anything you make here is scaled to your meet date.</Hint> : null}
-      <Text style={{ color: t.ink3, fontSize: 11, textAlign: 'center' }}>Tap {program ? 'Mine · ' : ''}Make · Find · Coaches at the top to switch.</Text>
+      {view === 'make' && settings.mode === 'meet' ? <Hint style={{ textAlign: 'center' }}>Meet mode: anything you make here is scaled to your meet date.</Hint> : null}
     </Screen>
   );
 }
 
 /* ---------- Mine: the program you are following ---------- */
 
-function Mine({ program, days, refresh }: { program: ProgramRow; days: ProgramDay[]; refresh: () => void }) {
+function Mine({ program, days, refresh, onFindCoach }: { program: ProgramRow; days: ProgramDay[]; refresh: () => void; onFindCoach: () => void }) {
   const db = useSQLiteContext();
   const router = useRouter();
   const t = useTheme();
@@ -113,7 +145,7 @@ function Mine({ program, days, refresh }: { program: ProgramRow; days: ProgramDa
           <Button title={`Open next: week ${next.week} · ${next.name}`} onPress={() => router.push({ pathname: '/program/day/[id]', params: { id: String(next.id) } })} />
           <Hint style={{ textAlign: 'center' }}>Or tap any day below to see its sets.</Hint>
         </View>
-      ) : <Body muted>Every session is logged. Nice. Make or find the next one at the top.</Body>}
+      ) : <Body muted>Every session is logged. Nice. Tap End program below to make or find the next one.</Body>}
 
       <View style={{ gap: space.sm }}>
         {weeks.map(w => {
@@ -157,56 +189,71 @@ function Mine({ program, days, refresh }: { program: ProgramRow; days: ProgramDa
       <Button title="Share this program (send a code)" kind="ghost" onPress={share} />
       <Body muted style={{ fontSize: 12, textAlign: 'center' }}>Your friend pastes the code under Programs → Make → Use a shared code. Weights are worked out from their bests, not yours.</Body>
       <Button title="End program" kind="ghost" onPress={confirmEnd} />
+      <Body muted style={{ fontSize: 12, textAlign: 'center' }}>Ending brings back Make and Find. Your log stays.</Body>
+      <Pressable onPress={onFindCoach} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 6 }}><Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>Want a coach to run this with you? Find a coach ›</Text></Pressable>
     </>
   );
 }
 
 /* ---------- Make ---------- */
 
-function Make({ hasProgram }: { hasProgram: boolean }) {
+function Make() {
   const router = useRouter();
   const t = useTheme();
   const { settings } = useSettings();
+  const [quickDays, setQuickDays] = useState(3);
+
+  function startQuick() {
+    setPendingTemplate(generateProgram({ ...DEFAULT_ANSWERS, mode: 'general', days: quickDays, weeks: 6 }));
+    router.push({ pathname: '/program/start', params: { template: 'pending' } });
+  }
+
   return (
     <>
       <Card style={{ borderColor: t.accent, borderWidth: 1.5, gap: 10 }}>
         <H2>Make me a program</H2>
         <Body muted style={{ fontSize: 14 }}>Eight quick questions — level, days, focus, what’s sore — and you get a program written for you{settings.mode === 'meet' ? ', scaled to your meet date' : ''}. Then you enter your bests and every weight is filled in.</Body>
         <Button title="Start the questions" onPress={() => router.push('/program/make')} />
-        {hasProgram ? <Hint>Starting a new program ends the one you are on. Your log stays.</Hint> : null}
+      </Card>
+
+      <Card style={{ gap: 8 }}>
+        <H2>Got a program from your coach?</H2>
+        <Body muted style={{ fontSize: 14 }}>Paste the Google Sheets link or pick the Excel file. The app reads the weeks, days, sets, reps and weights and lays it out the Weeks Out way — one tap to log each session.</Body>
+        <Button title="Import a spreadsheet" onPress={() => router.push('/program/sheet')} />
+      </Card>
+
+      <Card style={{ gap: 6 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <H2>Quick start</H2>
+          <Eyebrow>6 weeks · {quickDays} days a week</Eyebrow>
+        </Row>
+        <Body muted style={{ fontSize: 13 }}>No questions. A sensible strength block for the days you have. Pick the days, tap Start.</Body>
+        <Segmented<number> options={[2, 3, 4, 5, 6]} value={quickDays} onChange={setQuickDays} labels={v => `${v} days`} />
+        <Button title="Start" kind="ghost" onPress={startQuick} />
       </Card>
 
       <Row>
         <Button title="Build your own" kind="ghost" onPress={() => router.push('/program/new')} style={{ flex: 1 }} />
         <Button title="Use a shared code" kind="ghost" onPress={() => router.push('/program/import')} style={{ flex: 1 }} />
       </Row>
-
-      <Eyebrow style={{ marginTop: 4 }}>Ready-made</Eyebrow>
-      {TEMPLATES.filter(p => !p.id.startsWith('meet-prep')).map(p => (
-        <Card key={p.id}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <H2 style={{ flexShrink: 1 }}>{p.name}</H2>
-            <Eyebrow>{p.weeks} wk · {p.daysPerWeek}×/wk</Eyebrow>
-          </Row>
-          <Body muted>{p.who}</Body>
-          <Button title="Start" kind="ghost" onPress={() => router.push({ pathname: '/program/start', params: { template: p.id } })} />
-        </Card>
-      ))}
     </>
   );
 }
 
-/* ---------- Find: programs shared by lifters and coaches ---------- */
+/* ---------- Find: well-known programs + coach-made ones ---------- */
+
+type FindGoal = 'all' | 'strength' | 'hypertrophy' | 'meet-prep' | 'rehab';
+type FindLevel = 'all' | 'beginner' | 'intermediate' | 'advanced';
 
 function Find() {
   const router = useRouter();
   const t = useTheme();
-  const [goal, setGoal] = useState<ExploreProgram['goal'] | 'all'>('all');
-  const [level, setLevel] = useState<ExploreProgram['level'] | 'all'>('all');
+  const [goal, setGoal] = useState<FindGoal>('all');
+  const [level, setLevel] = useState<FindLevel>('all');
   const [days, setDays] = useState<number>(0);
   const [filters, setFilters] = useState(false);
 
-  function start(p: ExploreProgram) {
+  function startCoach(p: ExploreProgram) {
     if (p.template) { router.push({ pathname: '/program/start', params: { template: p.template } }); return; }
     if (p.code) {
       const shared = decodeProgram(p.code);
@@ -215,26 +262,27 @@ function Find() {
   }
 
   const active = (goal !== 'all' ? 1 : 0) + (level !== 'all' ? 1 : 0) + (days !== 0 ? 1 : 0);
-  const programs = EXPLORE_PROGRAMS.filter(p => (goal === 'all' || p.goal === goal) && (level === 'all' || p.level === level) && (days === 0 || p.daysPerWeek === days));
+  const famous = FAMOUS.filter(p => (goal === 'all' || p.meta.goal === goal) && (level === 'all' || p.meta.level === level) && (days === 0 || p.daysPerWeek === days));
+  const coachMade = EXPLORE_PROGRAMS.filter(p => (goal === 'all' || p.goal === goal) && (level === 'all' || p.level === level) && (days === 0 || p.daysPerWeek === days));
 
   return (
     <>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Body muted style={{ fontSize: 13, flex: 1 }}>{programs.length} program{programs.length === 1 ? '' : 's'} · all free for now</Body>
+        <Body muted style={{ fontSize: 13, flex: 1 }}>{famous.length + coachMade.length} program{famous.length + coachMade.length === 1 ? '' : 's'} · all free</Body>
         <Pressable onPress={() => setFilters(f => !f)} hitSlop={8} accessibilityRole="button" style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: active ? t.accent : t.line, backgroundColor: active ? t.accentSoft : t.panel }}>
           <Text style={{ color: active ? t.accent : t.ink2, fontSize: 12, fontWeight: '700' }}>{filters ? 'Hide filters' : active ? `Filters · ${active}` : 'Filter'}</Text>
         </Pressable>
       </Row>
       {filters ? (
         <Card style={{ gap: 6 }}>
-          <Segmented<ExploreProgram['goal'] | 'all'> options={['all', 'strength', 'meet-prep', 'hypertrophy', 'rehab']} value={goal} onChange={setGoal} labels={v => (v === 'all' ? 'Any goal' : GOAL_LABEL[v])} />
-          <Segmented<ExploreProgram['level'] | 'all'> options={['all', 'beginner', 'intermediate', 'advanced']} value={level} onChange={setLevel} labels={v => (v === 'all' ? 'Any level' : LEVEL_LABEL[v])} />
+          <Segmented<FindGoal> options={['all', 'strength', 'hypertrophy', 'meet-prep', 'rehab']} value={goal} onChange={setGoal} labels={v => (v === 'all' ? 'Any goal' : GOAL_LABEL[v])} />
+          <Segmented<FindLevel> options={['all', 'beginner', 'intermediate', 'advanced']} value={level} onChange={setLevel} labels={v => (v === 'all' ? 'Any level' : LEVEL_LABEL[v])} />
           <Segmented<number> options={[0, 2, 3, 4, 5, 6]} value={days} onChange={setDays} labels={v => (v === 0 ? 'Any days' : `${v} days`)} />
         </Card>
       ) : null}
 
-      {programs.length === 0 ? <Body muted>Nothing matches those filters yet. Try fewer filters, or tap Make at the top and the app writes one for you.</Body> : null}
-      {programs.map(p => (
+      {coachMade.length > 0 ? <Eyebrow>From coaches on Weeks Out</Eyebrow> : null}
+      {coachMade.map(p => (
         <Card key={p.id}>
           <Row style={{ justifyContent: 'space-between' }}>
             <H2 style={{ flexShrink: 1 }}>{p.name}</H2>
@@ -242,16 +290,30 @@ function Find() {
           </Row>
           <Eyebrow>{LEVEL_LABEL[p.level]} · {GOAL_LABEL[p.goal]} · {p.weeks} wk · {p.daysPerWeek}×/wk · by {p.author}</Eyebrow>
           <Body muted>{p.blurb}</Body>
-          <Button title="Start this program" onPress={() => start(p)} />
+          <Button title="Start this program" onPress={() => startCoach(p)} />
           {p.coach ? <Button title={`Like it? Message @${p.coach} for coaching`} kind="ghost" onPress={() => Linking.openURL(`https://instagram.com/${p.coach}`)} /> : null}
         </Card>
       ))}
 
+      {famous.length > 0 ? <Eyebrow>Well-known programs</Eyebrow> : null}
+      {famous.map(p => (
+        <Card key={p.id}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <H2 style={{ flexShrink: 1 }}>{p.name}</H2>
+            <Eyebrow>{p.weeks} wk · {p.daysPerWeek}×/wk</Eyebrow>
+          </Row>
+          <Eyebrow>{LEVEL_LABEL[p.meta.level]} · {GOAL_LABEL[p.meta.goal]} · by {p.meta.author}</Eyebrow>
+          <Body muted>{p.meta.blurb}</Body>
+          <Button title="Start this program" onPress={() => router.push({ pathname: '/program/start', params: { template: p.id } })} />
+        </Card>
+      ))}
+      {famous.length + coachMade.length === 0 ? <Body muted>Nothing matches those filters. Try fewer, or tap Make and the app writes one for you.</Body> : null}
+
       <Card style={{ borderStyle: 'dashed' }}>
-        <H2>Share yours</H2>
-        <Body muted>Built something that works? Mine → Share this program gives you a code. Send the code with a name and a line about who it’s for and it goes on this list.</Body>
+        <H2>Coach? List your program here</H2>
+        <Body muted>Build it in the app (or import your spreadsheet), tap Share this program for a code, and send the code with a name and a line about who it’s for. Lifters who start it see a “message you for coaching” button.</Body>
         <Button title="Submit a program" kind="ghost" onPress={() => Linking.openURL(SUBMIT_URL)} />
-        <Hint>Paid programs are coming — for now everything here is free.</Hint>
+        <Hint>Well-known programs are the authors’ public methods, translated to percentages of your estimated 1RM. Paid programs are coming.</Hint>
       </Card>
     </>
   );

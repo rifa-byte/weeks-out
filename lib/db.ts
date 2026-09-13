@@ -345,7 +345,7 @@ export async function exportProgram(db: SQLiteDatabase, programId: number, autho
     daysPerWeek: p.days_per_week,
     days: days.map(d => ({
       name: d.name,
-      sets: d.sets.map(({ weightKg: _w, ...rest }) => rest),
+      sets: d.sets.map(({ weightKg: _w, ...rest }) => rest),   // resolved weights stay home; fixedKg (spreadsheet imports) travels
     })),
   };
 }

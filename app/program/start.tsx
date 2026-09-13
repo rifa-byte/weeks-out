@@ -9,7 +9,7 @@ import { bestByLift, startProgram } from '@/lib/db';
 import { parseNum } from '@/lib/format';
 import { LIFTS, LIFT_LABEL, type Lift } from '@/lib/math';
 import { takePendingTemplate } from '@/lib/pending';
-import { templateById, type Bests, type Template } from '@/lib/programs';
+import { liftsNeeded, templateById, type Bests, type Template } from '@/lib/programs';
 import { useSettings } from '@/lib/settings';
 
 export default function StartProgramScreen() {
@@ -35,7 +35,8 @@ export default function StartProgramScreen() {
 
   const bests: Bests = {};
   for (const l of LIFTS) { const n = parseNum(text[l]); bests[l] = n && n > 0 ? toKg(n) : null; }
-  const ready = LIFTS.every(l => bests[l]);
+  const needed = liftsNeeded(template);                 // a coach's sheet with fixed weights may need none
+  const ready = needed.every(l => bests[l]);
 
   async function start() {
     if (!template || !ready) return;
@@ -53,6 +54,7 @@ export default function StartProgramScreen() {
           {template.shape ? <Body muted>{template.shape}</Body> : null}
           {template.id.startsWith('custom:') ? <Body muted>Every day starts empty. After you start, open a day and tap “Change this day” to add movements, then “Apply to every week”.</Body> : null}
         </View>
+        {needed.length === 0 ? <Card><Eyebrow>No bests needed</Eyebrow><Body muted style={{ fontSize: 13 }}>Every weight in this program is written in already. You can still fill these in — the Rank tab and PR flags use them.</Body></Card> : null}
         <Card>
           <Eyebrow>Your current bests ({unit})</Eyebrow>
           <Body muted style={{ fontSize: 13 }}>Pre-filled from your log where you have one. A true 1RM or a recent e1RM both work — the program loads percentages off these and rounds down to 2.5 kg.</Body>
@@ -64,7 +66,7 @@ export default function StartProgramScreen() {
           ))}
         </Card>
         <Button title="Start program" onPress={start} disabled={!ready} style={{ opacity: ready ? 1 : 0.4 }} />
-        {!ready ? <Body muted style={{ fontSize: 13, textAlign: 'center' }}>Enter all three lifts to start.</Body> : null}
+        {!ready ? <Body muted style={{ fontSize: 13, textAlign: 'center' }}>Enter your {needed.length === 3 ? 'three lifts' : needed.map(l => LIFT_LABEL[l].toLowerCase()).join(' and ')} to start.</Body> : null}
       </Screen>
     </>
   );

@@ -6,6 +6,7 @@
  * started even if the log changes later.
  */
 import { factorOf, parentOf } from './exercises';
+import { famousById } from './famous';
 import { meetPrep } from './meetprep';
 import { floorTo, type Lift } from './math';
 
@@ -14,6 +15,7 @@ export interface PlannedSet {
   sets: number;
   reps: number;
   pct?: number;       // fraction of e1RM, e.g. 0.8; omitted for accessories
+  fixedKg?: number;   // a fixed weight (e.g. from a coach's spreadsheet) — wins over pct
   rpe?: number;       // target RPE shown to the lifter
   note?: string;
 }
@@ -87,15 +89,15 @@ const sbdSplit: Template = {
   },
 };
 
-// ---------- meet prep (generated, any length, 2–6 days) ----------
-// see meetprep.ts; the 8-week / 3-day version is listed here as the default card
+/** Weeks Out's own two templates. Meet prep is generated (meetprep.ts); well-known programs live in famous.ts. */
+export const TEMPLATES: Template[] = [fullBody, sbdSplit];
 
-export const TEMPLATES: Template[] = [fullBody, sbdSplit, { ...meetPrep({ weeks: 8, days: 3 }), id: 'meet-prep-8', name: '8-week meet prep' }];
-
-/** Built-in templates by id, including generated meet preps like `meet-prep:12:4`. */
+/** Built-in templates by id: our own, generated meet preps like `meet-prep:12:4` (or the old `meet-prep-8`), and well-known programs `famous:*`. */
 export function templateById(id: string): Template | null {
   const m = /^meet-prep:(\d+):(\d+)$/.exec(id);
   if (m) return meetPrep({ weeks: Number(m[1]), days: Number(m[2]) });
+  if (id === 'meet-prep-8') return { ...meetPrep({ weeks: 8, days: 3 }), id, name: '8-week meet prep' };
+  if (id.startsWith('famous:')) return famousById(id);
   return TEMPLATES.find(t => t.id === id) ?? null;
 }
 
@@ -123,7 +125,7 @@ export function resolveProgram(template: Template, bests: Bests, step = 2.5): Re
 export function resolveSet(s: PlannedSet, bests: Bests, step = 2.5): ResolvedSet {
   const parent = parentOf(s.exercise);
   const best = parent ? bests[parent] : null;
-  const weightKg = s.pct != null && best ? Math.max(20, floorTo(best * s.pct * factorOf(s.exercise), step)) : null;
+  const weightKg = s.fixedKg != null ? s.fixedKg : s.pct != null && best ? Math.max(20, floorTo(best * s.pct * factorOf(s.exercise), step)) : null;
   return { ...s, weightKg };
 }
 
@@ -132,6 +134,8 @@ export function swapExercise(s: PlannedSet, newExerciseId: string, bests: Bests,
   const next: PlannedSet = { ...s, exercise: newExerciseId };
   // If the new movement has no parent lift, a percentage means nothing — drop it.
   if (!parentOf(newExerciseId)) delete next.pct;
+  // A fixed weight belonged to the old movement.
+  if (newExerciseId !== s.exercise) delete next.fixedKg;
   return resolveSet(next, bests, step);
 }
 

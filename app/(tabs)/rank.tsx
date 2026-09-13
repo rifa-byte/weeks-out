@@ -47,9 +47,12 @@ export default function RankScreen() {
 function Stand() {
   const db = useSQLiteContext();
   const t = useTheme();
-  const { settings, fmt, unit, toKg } = useSettings();
+  const { settings, set, fmt, unit, toKg } = useSettings();
   const [best, setBest] = useState<Record<Lift, number | null>>({ squat: null, bench: null, deadlift: null });
   const [totalText, setTotalText] = useState('');
+  const [editBody, setEditBody] = useState(false);
+  const [bwText, setBwText] = useState('');
+  useEffect(() => { setBwText(fmt(settings.bodyweightKg, settings.units === 'lb' ? 0 : 1)); }, [settings.bodyweightKg, settings.units, fmt]);
   const [eq, setEq] = useState<Equip>('raw');
   const [meta, setMeta] = useState<OplMeta | null | 'loading' | 'error'>('loading');
 
@@ -71,8 +74,17 @@ function Stand() {
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Eyebrow>Your numbers</Eyebrow>
-          <Eyebrow>{sex === 'M' ? 'Men' : 'Women'} · {cls} kg · {fmt(bw)} {unit}</Eyebrow>
+          <Pressable onPress={() => setEditBody(e => !e)} hitSlop={8}><Text style={{ color: t.accent, fontSize: 12, fontWeight: '700' }}>{sex === 'M' ? 'Men' : 'Women'} · {cls} kg class · {fmt(bw)} {unit} · {editBody ? 'done' : 'change'}</Text></Pressable>
         </Row>
+        {editBody ? (
+          <Row style={{ alignItems: 'flex-end' }}>
+            <Field label={`Bodyweight (${unit})`} value={bwText} onChangeText={setBwText} onBlur={() => { const n = parseNum(bwText); if (n && n > 0) set('bodyweightKg', Math.round(toKg(n) * 100) / 100); }} keyboardType="decimal-pad" />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>Sex</Text>
+              <Segmented<'M' | 'F'> options={['M', 'F']} value={sex} onChange={v => set('sex', v)} labels={v => (v === 'M' ? 'Men' : 'Women')} />
+            </View>
+          </Row>
+        ) : null}
         <Row style={{ justifyContent: 'space-between' }}>
           {LIFTS.map(l => (
             <View key={l} style={{ flex: 1 }}>
@@ -91,7 +103,7 @@ function Stand() {
           <Field label={`Or type a total (${unit})`} value={totalText} onChangeText={setTotalText} keyboardType="decimal-pad" placeholder={sumBest ? fmt(sumBest) : 'e.g. 500'} containerStyle={{ flex: 0, width: 150 }} />
         </Row>
         <Segmented<Equip> options={['raw', 'wraps', 'single', 'multi']} value={eq} onChange={setEq} labels={v => EQUIP_LABEL[v]} />
-        <Hint>{sumBest ? 'Total = your best estimated 1RMs added up. Type a total to try a goal instead.' : 'Log one set of each lift (or type a total) and this fills in.'} Bodyweight and sex come from the Meet tab.</Hint>
+        <Hint>{sumBest ? 'Total = your best estimated 1RMs added up. Type a total to try a goal instead.' : 'Log one set of each lift (or type a total) and this fills in.'} Tap the line at the top right to set your bodyweight.</Hint>
       </Card>
 
       {meta === 'loading' ? <Row style={{ justifyContent: 'center' }}><ActivityIndicator color={t.accent} /><Body muted>Checking the OpenPowerlifting index…</Body></Row>
@@ -373,7 +385,7 @@ function Fail() {
                 {askACoach(m) ? (
                   <View style={{ gap: 6 }}>
                     <Body style={{ fontSize: 14 }}>This keeps happening. A coach watching one video of you would fix it faster than any variation.</Body>
-                    <Button title="Find a coach" onPress={() => router.push({ pathname: '/(tabs)/programs', params: { view: 'coaches' } })} />
+                    <Button title="Find a coach" onPress={() => router.push({ pathname: '/(tabs)/programs', params: { view: 'coaches', t: String(Date.now()) } })} />
                   </View>
                 ) : null}
               </>

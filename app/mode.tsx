@@ -2,6 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { DateField } from '@/components/DateField';
 import { Body, Button, Card, Eyebrow, Field, Hint, Row, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { formatDate, parseIso } from '@/lib/format';
@@ -41,11 +42,9 @@ export default function ModeScreen() {
         {mode === 'meet' ? (
           <Card>
             <Eyebrow>Your meet</Eyebrow>
-            <Row style={{ alignItems: 'flex-end' }}>
-              <Field label="Meet name" value={name} onChangeText={setName} placeholder="e.g. Nationals" />
-              <Field label="Date (yyyy-mm-dd)" value={date} onChangeText={setDate} placeholder="2026-11-07" autoCapitalize="none" keyboardType="numbers-and-punctuation" />
-            </Row>
-            {validDate ? <Body muted style={{ fontSize: 13 }}>{formatDate(date)} — {wk === 0 ? 'that’s this week' : `${wk} weeks out`}.</Body> : <Text style={{ color: t.danger, fontSize: 13 }}>Type the date as year-month-day, e.g. 2026-11-07.</Text>}
+            <Field label="Meet name" value={name} onChangeText={setName} placeholder="e.g. Nationals" />
+            <DateField label="Meet date" value={date} onChange={setDate} minimumDate={new Date()} />
+            {validDate ? <Body muted style={{ fontSize: 13 }}>{formatDate(date)} — {wk === 0 ? 'that’s this week' : `${wk} weeks out`}.</Body> : <Text style={{ color: t.danger, fontSize: 13 }}>Pick your meet date.</Text>}
           </Card>
         ) : null}
 

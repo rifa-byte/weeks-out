@@ -1,9 +1,9 @@
 /**
  * Weeks Out — program share codes.
  *
- * A program travels as text: "WO1." + base64url(JSON). Weights are stripped — only the
- * shape goes (movement, sets, reps, % of e1RM, RPE, note) — so the receiver loads it from
- * their own bests. Keys are shortened to keep codes pasteable.
+ * A program travels as text: "WO1." + base64url(JSON). Only the shape goes (movement, sets,
+ * reps, % of e1RM, RPE, note) so the receiver loads it from their own bests — except fixed
+ * weights (a coach's spreadsheet), which travel as-is. Keys are shortened to keep codes pasteable.
  */
 import { exerciseById } from './exercises';
 import type { PlannedDay, PlannedSet, Template } from './programs';
@@ -77,7 +77,7 @@ export function b64urlDecode(s: string): string | null {
 }
 
 // ---------- compact JSON ----------
-type CSet = { e: string; s: number; r: number; p?: number; q?: number; n?: string };
+type CSet = { e: string; s: number; r: number; p?: number; k?: number; q?: number; n?: string };
 type CDay = { n: string; s: CSet[] };
 type CProgram = { v: 1; n: string; a?: string; b?: string; t?: SharedTags; w: number; d: number; days: CDay[] };
 
@@ -89,6 +89,7 @@ function compact(p: SharedProgram): CProgram {
       s: d.sets.map(s => {
         const c: CSet = { e: s.exercise, s: s.sets, r: s.reps };
         if (s.pct != null) c.p = Math.round(s.pct * 1000) / 1000;
+        if (s.fixedKg != null) c.k = Math.round(s.fixedKg * 100) / 100;
         if (s.rpe != null) c.q = s.rpe;
         if (s.note) c.n = s.note;
         return c;
@@ -102,7 +103,7 @@ function expand(c: CProgram): SharedProgram {
     name: c.n, author: c.a, about: c.b, tags: c.t, weeks: c.w, daysPerWeek: c.d,
     days: c.days.map(d => ({
       name: d.n,
-      sets: d.s.map(s => ({ exercise: s.e, sets: s.s, reps: s.r, pct: s.p, rpe: s.q, note: s.n })),
+      sets: d.s.map(s => ({ exercise: s.e, sets: s.s, reps: s.r, pct: s.p, fixedKg: s.k, rpe: s.q, note: s.n })),
     })),
   };
 }
@@ -126,6 +127,7 @@ export function decodeProgram(text: string): SharedProgram | null {
     for (const d of p.days) for (const s of d.sets) {
       if (typeof s.exercise !== 'string' || !(s.sets >= 1) || !(s.reps >= 1)) return null;
       if (s.pct != null && !(s.pct > 0 && s.pct <= 1.5)) return null;
+      if (s.fixedKg != null && !(s.fixedKg > 0 && s.fixedKg < 1000)) return null;
     }
     return p;
   } catch { return null; }

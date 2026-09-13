@@ -60,6 +60,8 @@ lib/
   picker.ts           callback bridge for the picker route
   share.ts            share codes: WO1. + base64url(compact JSON) (unit-tested)
   explore.ts          the curated Find / Coaches list — add programs and coaches here
+  sheet.ts            coach spreadsheet → program (Google Sheets / Excel / CSV / pasted cells)
+  famous.ts           well-known programs as templates (credited)
   opl.ts              OpenPowerlifting client: name search, ladders, percentile / rank / placing maths
   failmap.ts          the Fail Map: positions, aggregation, fixes (cues, variations, accessories)
   meetday.ts          meet-day timeline and attempt rules (unit-tested)
@@ -84,6 +86,7 @@ constants/theme.ts    palette (light + dark), plate colours, spacing
 - Sprint 9 (done): meet mode / general mode chosen on first launch and switchable; Programs = “Make me a program” (8-question questionnaire → AI-written program, validated, with built-in fallback) or “Find a program” (Explore with goal / level / days filters, coach programs link to coaching); share codes carry tags
 - Sprint 10 (done): first launch = “meet or not?” then straight into the questionnaire, nothing else (skippable; keyed on `setupDone`); Explore folded into Programs as Mine / Make / Find / Coaches; tabs are now Log + Programs (+ Meet in meet mode); tour moved to Help
 - Sprint 11 (done): the Rank tab — “Where you stand” (search any lifter on OpenPowerlifting, compare lift by lift, see where your total lands in your class worldwide or per country, recent meets and where you’d have placed) and “Where you fail” (the Fail Map: tap where a rep stuck when logging → sticking point per lift, why, cues, variations, accessories, and a nudge to a coach)
+- Sprint 12 (done): calendar date picker for the meet date; Programs tab is the program while one runs (Make/Find return when it ends); Quick start 2–6 days; well-known programs in Find (Texas Method, Madcow, 5/3/1 BBB, GZCLP — lib/famous.ts); **spreadsheet import** (Google Sheets link / Excel or CSV file / pasted cells → weeks, days, sets, reps, kg/%/RPE, lb converted — lib/sheet.ts); Load the bar for everyone (Log tab + /plates); bodyweight and sex editable on Rank
 - Next: app icon; store screenshots; turn the AI on (see below); friends' feedback via Issues (see CONTRIBUTING.md)
 - December: accounts (Supabase), publish programs to Find from the app, coach profiles + applications, paid programs (in-app purchase)
 - Then: Google Play closed test (12 testers, 14 days), TestFlight, launch on meet day

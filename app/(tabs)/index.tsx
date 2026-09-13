@@ -76,7 +76,13 @@ export default function LogScreen() {
             <Text style={{ color: t.accent, fontSize: 12, fontWeight: '700', marginTop: 4 }}>{settings.mode === 'meet' ? 'Meet mode · change' : 'Not prepping for a meet · change'}</Text>
           </Pressable>
         </View>
-        <HelpLink topic="log" />
+        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+          <HelpLink topic="log" />
+          <Pressable onPress={() => router.push('/plates')} accessibilityRole="button" hitSlop={8}
+            style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: t.line, backgroundColor: t.panel }}>
+            <Text style={{ color: t.ink2, fontSize: 12, fontWeight: '700' }}>⚖ Load the bar</Text>
+          </Pressable>
+        </View>
       </Row>
 
       <Card>
