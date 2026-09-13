@@ -6,7 +6,8 @@ import { Pressable, Text, View } from 'react-native';
 import { PlateStrip } from '@/components/PlateStrip';
 import { PrepBlock } from '@/components/PrepBlock';
 import { RestTimer } from '@/components/RestTimer';
-import { Body, Button, Card, Divider, Dot, Eyebrow, Field, Num, Row, Screen, Segmented } from '@/components/ui';
+import { HelpLink } from '@/components/HelpLink';
+import { Body, Button, Card, Divider, Dot, Eyebrow, Field, Hint, Num, Row, Screen, Segmented, Step } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
 import { addSet, bestFor, deleteSet, getSession, isPr, lastTimeFor, listSets, todayIso, updateSessionNotes, type LastTime, type SetRow } from '@/lib/db';
 import { exerciseById, parentOf } from '@/lib/exercises';
@@ -120,16 +121,16 @@ export default function SessionScreen() {
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
             <Eyebrow>Add a set</Eyebrow>
-            <Pressable onPress={openPicker} accessibilityRole="button" hitSlop={8}>
-              <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>All movements ›</Text>
-            </Pressable>
+            <HelpLink topic="session" />
           </Row>
+          <Step n={1}>Tap the movement</Step>
           <Segmented<string>
             options={quick}
             value={exercise}
             onChange={setExercise}
             labels={v => (LIFT_LABEL as Record<string, string>)[v] ?? labelFor(v)}
           />
+          <Button title="Something else? Search all movements" kind="ghost" onPress={openPicker} style={{ paddingVertical: 9 }} />
           {info && info.category !== 'main' ? (
             <Body muted style={{ fontSize: 12 }}>{info.name}{info.parent ? ` · ~${Math.round(info.factor * 100)}% of ${LIFT_LABEL[info.parent].toLowerCase()}` : ''}{info.bodyweight ? ' · log added load' : ''}</Body>
           ) : null}
@@ -145,13 +146,15 @@ export default function SessionScreen() {
             </View>
           ) : null}
 
+          <Step n={2}>Type the weight and reps</Step>
           <Row style={{ alignItems: 'flex-end' }}>
-            <Field label={`Weight (${unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="0" />
-            <Field label="Reps" value={reps} onChangeText={setReps} keyboardType="number-pad" placeholder="0" />
+            <Field label={`Weight on the bar (${unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="e.g. 100" />
+            <Field label="Reps" value={reps} onChangeText={setReps} keyboardType="number-pad" placeholder="e.g. 5" />
           </Row>
           {wKg && isBarbell && wKg > settings.barKg ? <PlateStrip weightKg={wKg} plateSet={settings.plateSet} barKg={settings.barKg} /> : null}
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: t.ink3, fontSize: 12, fontWeight: '600' }}>RPE</Text>
+          <View style={{ gap: 6 }}>
+            <Step n={3}>Tap how hard it was (RPE)</Step>
+            <Body muted style={{ fontSize: 12 }}>10 = nothing left · 9 = one rep left · 8 = two left · 7 = three left</Body>
             <Segmented<number | 0>
               options={[0, ...RPE_VALUES]}
               value={rpe ?? 0}
@@ -159,21 +162,23 @@ export default function SessionScreen() {
               labels={v => (v === 0 ? 'none' : String(v))}
             />
           </View>
+          <Step n={4}>Tap Add set</Step>
           <Row style={{ justifyContent: 'space-between' }}>
             <View>
-              <Eyebrow>e1RM</Eyebrow>
+              <Eyebrow>Estimated 1RM</Eyebrow>
               <Num size={24}>{preview ? `${fmt(preview)} ${unit}` : '—'}</Num>
             </View>
-            <Button title="Add set" onPress={add} disabled={!canAdd} style={{ opacity: canAdd ? 1 : 0.4, minWidth: 120 }} />
+            <Button title="Add set" onPress={add} disabled={!canAdd} style={{ opacity: canAdd ? 1 : 0.4, minWidth: 140 }} />
           </Row>
+          {!canAdd ? <Hint>Fill in weight and reps and the button lights up.</Hint> : null}
         </Card>
 
         <View style={{ gap: space.sm }}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Eyebrow>Sets</Eyebrow>
-            {sets.length > 0 ? <Body muted style={{ fontSize: 12 }}>tap a set to edit it</Body> : null}
+            <Eyebrow>Sets this session</Eyebrow>
+            {sets.length > 0 ? <Body muted style={{ fontSize: 12 }}>tap a set to fix it</Body> : null}
           </Row>
-          {sets.length === 0 ? <Body muted>No sets yet.</Body> : (
+          {sets.length === 0 ? <Body muted>Nothing added yet — your sets appear here.</Body> : (
             <Card style={{ gap: 0, paddingVertical: 4 }}>
               {sets.map((s, i) => (
                 <View key={s.id}>
@@ -190,8 +195,8 @@ export default function SessionScreen() {
                         </Body>
                       </View>
                     </Pressable>
-                    <Pressable onPress={() => remove(s.id)} accessibilityLabel="Delete set" hitSlop={10} style={{ paddingHorizontal: 6 }}>
-                      <Text style={{ color: t.ink3, fontSize: 18 }}>×</Text>
+                    <Pressable onPress={() => remove(s.id)} accessibilityLabel="Delete set" hitSlop={10} style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: t.panelAlt }}>
+                      <Text style={{ color: t.ink2, fontSize: 12, fontWeight: '700' }}>✕ Delete</Text>
                     </Pressable>
                   </Row>
                 </View>
@@ -201,9 +206,10 @@ export default function SessionScreen() {
         </View>
 
         <Card>
-          <Eyebrow>Notes</Eyebrow>
-          <Field value={notes} onChangeText={saveNotes} placeholder="How did it move?" multiline style={{ minHeight: 70, textAlignVertical: 'top', fontSize: 15 }} />
+          <Eyebrow>Notes (optional)</Eyebrow>
+          <Field value={notes} onChangeText={saveNotes} placeholder="Tap to write how it felt — saves by itself" multiline style={{ minHeight: 70, textAlignVertical: 'top', fontSize: 15 }} />
         </Card>
+        <Body muted style={{ fontSize: 12, textAlign: 'center' }}>Done? Just tap ‹ Back at the top. Everything is already saved.</Body>
       </Screen>
     </>
   );

@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/constants/theme';
+import { useSettings } from '@/lib/settings';
 
 export default function TabLayout() {
   const t = useTheme();
+  const { settings } = useSettings();
   return (
     <Tabs
       screenOptions={{
@@ -18,12 +20,12 @@ export default function TabLayout() {
         options={{ title: 'Log', tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" size={size} color={color} /> }}
       />
       <Tabs.Screen
-        name="meet"
-        options={{ title: 'Meet', tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color} /> }}
-      />
-      <Tabs.Screen
         name="programs"
         options={{ title: 'Programs', tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="meet"
+        options={{ title: 'Meet', href: settings.mode === 'meet' ? undefined : null, tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color} /> }}
       />
     </Tabs>
   );

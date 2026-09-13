@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Body, Button, Card, Dot, Eyebrow, Field, Row, Screen, Title } from '@/components/ui';
@@ -8,12 +8,13 @@ import { liftColor, useTheme } from '@/constants/theme';
 import { bestByLift, startProgram } from '@/lib/db';
 import { parseNum } from '@/lib/format';
 import { LIFTS, LIFT_LABEL, type Lift } from '@/lib/math';
-import { templateById, type Bests } from '@/lib/programs';
+import { takePendingTemplate } from '@/lib/pending';
+import { templateById, type Bests, type Template } from '@/lib/programs';
 import { useSettings } from '@/lib/settings';
 
 export default function StartProgramScreen() {
   const { template: templateId } = useLocalSearchParams<{ template: string }>();
-  const template = templateById(String(templateId));
+  const template = useMemo<Template | null>(() => (templateId === 'pending' ? takePendingTemplate() : templateById(String(templateId))), [templateId]);
   const db = useSQLiteContext();
   const router = useRouter();
   const t = useTheme();
@@ -47,9 +48,10 @@ export default function StartProgramScreen() {
       <Stack.Screen options={{ title: 'Start program' }} />
       <Screen>
         <View>
-          <Eyebrow>{template.weeks} weeks · {template.daysPerWeek} days a week</Eyebrow>
+          <Eyebrow>{template.weeks} weeks · {template.daysPerWeek} days a week{template.id.startsWith('shared:') ? ' · shared' : template.id.startsWith('custom:') ? ' · yours' : ''}</Eyebrow>
           <Title>{template.name}</Title>
-          <Body muted>{template.shape}</Body>
+          {template.shape ? <Body muted>{template.shape}</Body> : null}
+          {template.id.startsWith('custom:') ? <Body muted>Every day starts empty. After you start, open a day and tap “Change this day” to add movements, then “Apply to every week”.</Body> : null}
         </View>
         <Card>
           <Eyebrow>Your current bests ({unit})</Eyebrow>

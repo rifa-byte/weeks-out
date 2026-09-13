@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { e1rm, type Lift, type PlateSetId, type Sex } from './math';
 import { resolveProgram, type Bests, type ResolvedSet, type Template } from './programs';
+import type { SharedProgram } from './share';
 
 export const DB_NAME = 'weeksout.db';
 
@@ -70,6 +71,7 @@ export interface Settings {
   plateSet: PlateSetId;   // what the gym you're in actually has
   barKg: number;          // bar weight for plate maths
   restSeconds: number;    // rest timer target
+  mode: 'meet' | 'general';   // meet: Meet tab + weeks-out header; general: just train
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -81,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   plateSet: 'gym-kg',
   barKg: 20,
   restSeconds: 180,
+  mode: 'general',
 };
 
 // ---------- settings ----------
@@ -96,6 +99,7 @@ export async function loadSettings(db: SQLiteDatabase): Promise<Settings> {
     else if (r.key === 'plateSet') out.plateSet = (['ipf', 'gym-kg', 'gym-lb'] as PlateSetId[]).includes(r.value as PlateSetId) ? (r.value as PlateSetId) : DEFAULT_SETTINGS.plateSet;
     else if (r.key === 'barKg') out.barKg = Number(r.value) || DEFAULT_SETTINGS.barKg;
     else if (r.key === 'restSeconds') out.restSeconds = Number(r.value) || DEFAULT_SETTINGS.restSeconds;
+    else if (r.key === 'mode') out.mode = r.value === 'meet' ? 'meet' : 'general';
   }
   return out;
 }
@@ -302,4 +306,35 @@ export async function getJson<T>(db: SQLiteDatabase, key: string, fallback: T): 
 
 export async function setJson(db: SQLiteDatabase, key: string, value: unknown) {
   await db.runAsync('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+}
+
+// ---------- sharing ----------
+
+/** The active program as a shareable shape: weights stripped, percentages kept. */
+export async function exportProgram(db: SQLiteDatabase, programId: number, author?: string): Promise<SharedProgram | null> {
+  const p = await db.getFirstAsync<ProgramRow>('SELECT * FROM programs WHERE id = ?', programId);
+  if (!p) return null;
+  const days = await listProgramDays(db, programId);
+  return {
+    name: p.name,
+    author,
+    weeks: p.weeks,
+    daysPerWeek: p.days_per_week,
+    days: days.map(d => ({
+      name: d.name,
+      sets: d.sets.map(({ weightKg: _w, ...rest }) => rest),
+    })),
+  };
+}
+
+/** Copy one day's plan onto the same day number in every other week of the program. */
+export async function applyDayToAllWeeks(db: SQLiteDatabase, day: ProgramDay) {
+  await db.runAsync(
+    'UPDATE program_days SET plan_json = ?, name = ? WHERE program_id = ? AND day = ? AND id != ? AND session_id IS NULL',
+    JSON.stringify(day.sets), day.name, day.program_id, day.day, day.id,
+  );
+}
+
+export async function renameProgramDay(db: SQLiteDatabase, dayId: number, name: string) {
+  await db.runAsync('UPDATE program_days SET name = ? WHERE id = ?', name, dayId);
 }

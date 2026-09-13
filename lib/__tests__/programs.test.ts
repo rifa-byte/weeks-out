@@ -33,12 +33,18 @@ describe('templates', () => {
     }
   });
 
-  test('meet prep: week 5 squat single is the opener (91% floored)', () => {
+  test('meet prep: first peak week squat single is the opener (91% floored)', () => {
     const t = templateById('meet-prep-8')!;
-    const day = resolveProgram(t, bests).find(d => d.week === 5 && d.day === 1)!;
+    const day = resolveProgram(t, bests).find(d => d.week === 6 && d.day === 1)!;
     expect(day.sets[0].exercise).toBe('squat');
     expect(day.sets[0].weightKg).toBe(180); // floor(200 × 0.91 = 182) → 180
     expect(day.sets[0].note).toBe('opener');
+  });
+  test('generated meet-prep ids resolve', () => {
+    const t = templateById('meet-prep:12:4')!;
+    expect(t.weeks).toBe(12);
+    expect(t.daysPerWeek).toBe(4);
+    expect(templateById('meet-prep:x:y')).toBeNull();
   });
 
   test('meet prep: last day is meet day with no prescribed weights', () => {

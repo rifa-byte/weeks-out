@@ -30,9 +30,15 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="session/[id]" options={{ title: 'Session' }} />
             <Stack.Screen name="program/start" options={{ title: 'Start program', presentation: 'modal' }} />
+            <Stack.Screen name="program/new" options={{ title: 'Build your own', presentation: 'modal' }} />
+            <Stack.Screen name="program/import" options={{ title: 'Use a shared program', presentation: 'modal' }} />
+            <Stack.Screen name="program/make" options={{ title: 'Make me a program', presentation: 'modal' }} />
+            <Stack.Screen name="mode" options={{ title: 'How are you using Weeks Out?', presentation: 'modal' }} />
             <Stack.Screen name="program/day/[id]" options={{ title: 'Program day' }} />
             <Stack.Screen name="exercise/pick" options={{ title: 'Pick a movement', presentation: 'modal' }} />
             <Stack.Screen name="meet/day" options={{ title: 'Meet day' }} />
+            <Stack.Screen name="help" options={{ title: 'How this works', presentation: 'modal' }} />
+            <Stack.Screen name="welcome" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           </Stack>
         </ThemeProvider>
       </SettingsProvider>

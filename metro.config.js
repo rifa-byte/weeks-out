@@ -1,0 +1,16 @@
+// Needed so `expo export --platform web` (used to deploy the API route to EAS Hosting)
+// can bundle expo-sqlite's web build. See https://docs.expo.dev/versions/latest/sdk/sqlite/#web-setup
+const { getDefaultConfig } = require('expo/metro-config');
+
+const config = getDefaultConfig(__dirname);
+config.resolver.assetExts.push('wasm');
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (middleware) => (req, res, next) => {
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    return middleware(req, res, next);
+  },
+};
+
+module.exports = config;

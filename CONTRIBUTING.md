@@ -6,6 +6,10 @@ Thanks for helping. Two ways in:
 
 Open a GitHub Issue on this repo. Say what you were trying to do in the gym, what the app did, and what you wished it did. Screenshots help. Rif triages issues and they get built in order of how many lifters they help.
 
+## Get listed under Programs → Find / Coaches
+
+Open an Issue titled "Add me to Explore" (the app's Submit buttons pre-fill it). For a program, include the share code from Programs → Mine → Share this program, a name, and one line about who it's for. For coaching, your name, Instagram, location, what you offer and a price. Rif adds it to `lib/explore.ts`.
+
 ## Work on the code
 
 1. Ask Rif to add you as a collaborator (or fork the repo).

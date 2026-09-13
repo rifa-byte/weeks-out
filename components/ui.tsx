@@ -68,8 +68,8 @@ export function Button({ title, kind = 'primary', style, ...rest }: PressablePro
     <Pressable
       accessibilityRole="button"
       style={({ pressed }) => [
-        { backgroundColor: bg, paddingVertical: 12, paddingHorizontal: 18, borderRadius: radius.sm, alignItems: 'center', opacity: pressed ? 0.7 : 1,
-          borderWidth: kind === 'ghost' ? StyleSheet.hairlineWidth : 0, borderColor: t.line },
+        { backgroundColor: kind === 'ghost' ? t.panel : bg, paddingVertical: 12, paddingHorizontal: 18, borderRadius: radius.sm, alignItems: 'center', opacity: pressed ? 0.7 : 1,
+          borderWidth: kind === 'ghost' ? 1.5 : 0, borderColor: t.ink },
         style,
       ]}
       {...rest}>
@@ -117,4 +117,43 @@ export function Divider() {
 
 export function Dot({ color, size = 10 }: { color: string; size?: number }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />;
+}
+
+/** A one-line nudge that tells the user what to do next. */
+export function Hint({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  const t = useTheme();
+  return <Text style={[{ color: t.accent, fontSize: 13, fontWeight: '600' }, style]}>→ {children}</Text>;
+}
+
+/** Numbered step label for forms: "1  Pick the lift". */
+export function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: t.ground, fontSize: 12, fontWeight: '800' }}>{n}</Text>
+      </View>
+      <Text style={{ color: t.ink, fontSize: 13, fontWeight: '700' }}>{children}</Text>
+    </View>
+  );
+}
+
+/** A tappable row that looks tappable: title, subtitle, chevron. */
+export function TapRow({ title, subtitle, onPress, onLongPress, left, right, highlight }: {
+  title: string; subtitle?: string; onPress: () => void; onLongPress?: () => void; left?: React.ReactNode; right?: React.ReactNode; highlight?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={onPress} onLongPress={onLongPress} accessibilityRole="button"
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.md,
+        backgroundColor: highlight ? t.accentSoft : t.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: highlight ? t.accent : t.line, opacity: pressed ? 0.7 : 1 })}>
+      {left}
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.ink, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+        {subtitle ? <Text style={{ color: t.ink2, fontSize: 13, marginTop: 2 }}>{subtitle}</Text> : null}
+      </View>
+      {right}
+      <Text style={{ color: t.accent, fontSize: 22, fontWeight: '700' }}>›</Text>
+    </Pressable>
+  );
 }

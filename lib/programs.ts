@@ -6,6 +6,7 @@
  * started even if the log changes later.
  */
 import { factorOf, parentOf } from './exercises';
+import { meetPrep } from './meetprep';
 import { floorTo, type Lift } from './math';
 
 export interface PlannedSet {
@@ -51,9 +52,9 @@ const fullBody: Template = {
     const m = fullBodyWave[(w - 1) % 4];
     const light = { ...m, pct: m.pct - 0.1, rpe: Math.max(5, (m.rpe ?? 7) - 1.5) };
     return [
-      { name: 'Day 1', sets: [{ exercise: S, ...m }, { exercise: B, ...m }, { exercise: 'barbell-row', sets: 3, reps: 8 }] },
-      { name: 'Day 2', sets: [{ exercise: D, ...m }, { exercise: 'pause-bench', ...m }, { exercise: 'pull-up', sets: 3, reps: 8 }] },
-      { name: 'Day 3', sets: [{ exercise: S, ...light }, { exercise: B, ...m }, { exercise: 'dip', sets: 3, reps: 10 }] },
+      { name: 'Day 1', sets: [{ exercise: S, ...m }, { exercise: B, ...m }, { exercise: 'barbell-row', sets: 3, reps: 8 }, { exercise: 'leg-curl', sets: 2, reps: 12 }] },
+      { name: 'Day 2', sets: [{ exercise: D, ...m }, { exercise: 'pause-bench', ...m }, { exercise: 'pull-up', sets: 3, reps: 8 }, { exercise: 'plank', sets: 2, reps: 1, note: '30–45 s' }] },
+      { name: 'Day 3', sets: [{ exercise: S, ...light }, { exercise: B, ...m }, { exercise: 'dip', sets: 3, reps: 10 }, { exercise: 'face-pull', sets: 2, reps: 15 }] },
     ];
   },
 };
@@ -78,56 +79,25 @@ const sbdSplit: Template = {
     const top = (ex: string) => ({ exercise: ex, sets: 1, ...t, note: t.note ?? 'top set' });
     const back = (ex: string, reps: number, sets: number) => ({ exercise: ex, sets, reps, pct: t.pct - 0.1, rpe: 7 });
     return [
-      { name: 'Squat', sets: [top(S), back(S, 5, 3), { exercise: B, sets: 4, reps: 6, pct: 0.7, rpe: 7 }] },
-      { name: 'Bench', sets: [top(B), back(B, 5, 3), { exercise: 'overhead-press', sets: 3, reps: 8 }] },
-      { name: 'Deadlift', sets: [top(D), back(D, 3, 3), { exercise: S, sets: 3, reps: 6, pct: 0.7, rpe: 7 }] },
-      { name: 'Volume', sets: [{ exercise: B, sets: 4, reps: 8, pct: 0.65, rpe: 7 }, { exercise: 'pause-squat', sets: 3, reps: 3, pct: 0.75, rpe: 7 }, { exercise: 'barbell-row', sets: 3, reps: 10 }] },
+      { name: 'Squat', sets: [top(S), back(S, 5, 3), { exercise: B, sets: 4, reps: 6, pct: 0.7, rpe: 7 }, { exercise: 'leg-curl', sets: 3, reps: 10 }] },
+      { name: 'Bench', sets: [top(B), back(B, 5, 3), { exercise: 'overhead-press', sets: 3, reps: 8 }, { exercise: 'tricep-pushdown', sets: 3, reps: 12 }] },
+      { name: 'Deadlift', sets: [top(D), back(D, 3, 3), { exercise: S, sets: 3, reps: 6, pct: 0.7, rpe: 7 }, { exercise: 'back-extension', sets: 3, reps: 12 }] },
+      { name: 'Volume', sets: [{ exercise: B, sets: 4, reps: 8, pct: 0.65, rpe: 7 }, { exercise: 'pause-squat', sets: 3, reps: 3, pct: 0.75, rpe: 7 }, { exercise: 'barbell-row', sets: 3, reps: 10 }, { exercise: 'face-pull', sets: 3, reps: 15 }] },
     ];
   },
 };
 
-// ---------- 8-week meet prep ----------
-const meetPrep: Template = {
-  id: 'meet-prep-8',
-  name: '8-week meet prep',
-  weeks: 8,
-  daysPerWeek: 3,
-  who: 'Anyone with a date on the calendar.',
-  shape: 'Four weeks of heavy volume, three weeks of singles at openers and above, one taper. Week 8 ends on the platform.',
-  week(w) {
-    if (w <= 4) {
-      const top = [{ pct: 0.80, reps: 4 }, { pct: 0.825, reps: 3 }, { pct: 0.85, reps: 3 }, { pct: 0.875, reps: 2 }][w - 1];
-      const main = (ex: string) => ({ exercise: ex, sets: 1, ...top, rpe: 8, note: 'top set' });
-      const back = (ex: string) => ({ exercise: ex, sets: 3, reps: top.reps + 2, pct: top.pct - 0.1, rpe: 7 });
-      return [
-        { name: 'Squat + bench', sets: [main(S), back(S), main(B), back(B)] },
-        { name: 'Deadlift', sets: [main(D), back(D), { exercise: 'pause-bench', sets: 3, reps: 5, pct: 0.72, rpe: 6 }] },
-        { name: 'Squat light + bench', sets: [{ exercise: 'pause-squat', sets: 3, reps: 4, pct: 0.78, rpe: 6.5 }, main(B), back(B), { exercise: 'barbell-row', sets: 3, reps: 10 }] },
-      ];
-    }
-    if (w <= 7) {
-      // Singles: opener (91%), second (96%), then opener again to stay sharp.
-      const single = [{ pct: 0.91, note: 'opener' }, { pct: 0.96, note: 'second attempt' }, { pct: 0.91, note: 'opener, then rest' }][w - 5];
-      const backoff = [{ pct: 0.80, sets: 3, reps: 3 }, { pct: 0.85, sets: 2, reps: 2 }, { pct: 0.75, sets: 2, reps: 2 }][w - 5];
-      const one = (ex: string) => ({ exercise: ex, sets: 1, reps: 1, pct: single.pct, rpe: single.pct > 0.95 ? 9 : 8, note: single.note });
-      const back = (ex: string) => ({ exercise: ex, ...backoff, rpe: 7 });
-      return [
-        { name: 'Squat + bench singles', sets: [one(S), back(S), one(B), back(B)] },
-        { name: 'Deadlift single', sets: [one(D), back(D), { exercise: 'pause-bench', sets: 3, reps: 3, pct: 0.78, rpe: 6.5 }] },
-        { name: 'Bench + light squat', sets: [one(B), back(B), { exercise: S, sets: 2, reps: 2, pct: 0.75, rpe: 6.5 }] },
-      ];
-    }
-    // Week 8: taper.
-    return [
-      { name: 'Openers, light', sets: [{ exercise: S, sets: 1, reps: 1, pct: 0.85, rpe: 7, note: 'last heavy-ish rep' }, { exercise: B, sets: 1, reps: 1, pct: 0.85, rpe: 7 }, { exercise: D, sets: 1, reps: 1, pct: 0.80, rpe: 6.5 }] },
-      { name: 'Bar speed', sets: [{ exercise: S, sets: 3, reps: 2, pct: 0.6, rpe: 5, note: 'fast' }, { exercise: B, sets: 3, reps: 2, pct: 0.6, rpe: 5, note: 'fast' }] },
-      { name: 'Meet day', sets: [{ exercise: S, sets: 3, reps: 1, note: 'attempts — see Meet tab' }, { exercise: B, sets: 3, reps: 1, note: 'attempts' }, { exercise: D, sets: 3, reps: 1, note: 'attempts' }] },
-    ];
-  },
-};
+// ---------- meet prep (generated, any length, 2–6 days) ----------
+// see meetprep.ts; the 8-week / 3-day version is listed here as the default card
 
-export const TEMPLATES: Template[] = [fullBody, sbdSplit, meetPrep];
-export const templateById = (id: string) => TEMPLATES.find(t => t.id === id) ?? null;
+export const TEMPLATES: Template[] = [fullBody, sbdSplit, { ...meetPrep({ weeks: 8, days: 3 }), id: 'meet-prep-8', name: '8-week meet prep' }];
+
+/** Built-in templates by id, including generated meet preps like `meet-prep:12:4`. */
+export function templateById(id: string): Template | null {
+  const m = /^meet-prep:(\d+):(\d+)$/.exec(id);
+  if (m) return meetPrep({ weeks: Number(m[1]), days: Number(m[2]) });
+  return TEMPLATES.find(t => t.id === id) ?? null;
+}
 
 // ---------- resolving ----------
 export interface ResolvedSet extends PlannedSet { weightKg: number | null }

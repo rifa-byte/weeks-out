@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
 import { PlateStrip } from '@/components/PlateStrip';
-import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Num, Row, Screen, Segmented, Title } from '@/components/ui';
+import { HelpLink } from '@/components/HelpLink';
+import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Hint, Num, Row, Screen, Segmented, Title } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
 import { bestByLift, getJson, setJson, todayIso } from '@/lib/db';
 import { formatDate, parseNum } from '@/lib/format';
@@ -110,11 +111,14 @@ export default function MeetDayScreen() {
     <>
       <Stack.Screen options={{ title: 'Meet day' }} />
       <Screen>
-        <View>
-          <Eyebrow>{settings.meetName} · {formatDate(settings.meetDate)}</Eyebrow>
-          <Title>{isMeetDay ? 'Today' : 'Meet day'}</Title>
-          <Body muted>Enter your times and the app writes the day. On the day it follows the clock.</Body>
-        </View>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Eyebrow>{settings.meetName} · {formatDate(settings.meetDate)}</Eyebrow>
+            <Title>{isMeetDay ? 'Today' : 'Meet day'}</Title>
+            <Body muted>Fill in the times below and the app writes your day. On the day it follows the clock.</Body>
+          </View>
+          <HelpLink topic="meetday" />
+        </Row>
 
         <Card>
           <Eyebrow>Your meet</Eyebrow>
@@ -140,6 +144,7 @@ export default function MeetDayScreen() {
         {timeline ? (
           <View style={{ gap: space.sm }}>
             <H2>Timeline</H2>
+            <Hint>Tap any line to read what to do.</Hint>
             {(['before', 'day'] as const).map(part => {
               const items = timeline.filter(i => (part === 'before' ? i.min < 0 : i.min >= 0));
               return (
@@ -160,8 +165,9 @@ export default function MeetDayScreen() {
           <View style={{ gap: space.sm }}>
             <Row style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
               <H2>Platform</H2>
-              <Pressable onPress={resetAttempts} hitSlop={8}><Text style={{ color: t.ink3, fontSize: 13, fontWeight: '600' }}>Reset</Text></Pressable>
+              <Pressable onPress={resetAttempts} hitSlop={8} style={{ paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: t.panelAlt }}><Text style={{ color: t.ink2, fontSize: 12, fontWeight: '700' }}>Reset attempts</Text></Pressable>
             </Row>
+            <Hint>After each lift, tap Good or Miss. The next attempt fills itself in.</Hint>
             <Card style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <View><Eyebrow>Total so far</Eyebrow><Num size={26}>{fmt(totals.total)} {unit}</Num></View>
               <View><Eyebrow>IPF GL</Eyebrow><Num size={26}>{totals.total ? ipfGL(totals.total, settings.bodyweightKg, settings.sex).toFixed(1) : '—'}</Num></View>

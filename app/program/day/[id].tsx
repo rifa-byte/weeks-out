@@ -3,12 +3,13 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 
-import { Body, Button, Card, Divider, Dot, Eyebrow, Row, Screen, Title } from '@/components/ui';
+import { Body, Button, Card, Divider, Dot, Eyebrow, Field, Hint, Row, Screen, Title } from '@/components/ui';
 import { liftColor, useTheme } from '@/constants/theme';
-import { activeProgram, getProgramDay, logProgramDay, updateProgramDayPlan, type ProgramDay } from '@/lib/db';
+import { activeProgram, applyDayToAllWeeks, getProgramDay, logProgramDay, renameProgramDay, updateProgramDayPlan, type ProgramDay } from '@/lib/db';
 import { exerciseById, parentOf } from '@/lib/exercises';
 import { labelFor } from '@/lib/format';
-import { LIFT_LABEL } from '@/lib/math';
+import { LIFT_LABEL, LIFTS } from '@/lib/math';
+import { prepFor } from '@/lib/prep';
 import { registerPick } from '@/lib/picker';
 import { resolveSet, swapExercise, type Bests, type ResolvedSet } from '@/lib/programs';
 import { useSettings } from '@/lib/settings';
@@ -73,6 +74,14 @@ export default function ProgramDayScreen() {
     save(next);
   }
 
+  function applyAll() {
+    if (!day) return;
+    Alert.alert('Apply to every week?', `Day ${day.day} of every other week becomes a copy of this one (weeks already logged are left alone).`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Apply', onPress: () => applyDayToAllWeeks(db, day) },
+    ]);
+  }
+
   async function log() {
     if (!day) return;
     const sessionId = await logProgramDay(db, day);
@@ -80,6 +89,9 @@ export default function ProgramDayScreen() {
   }
 
   if (!day) return <Screen><Body muted>Loading…</Body></Screen>;
+
+  const dayLifts = LIFTS.filter(l => day.sets.some(s => parentOf(s.exercise) === l));
+  const prep = prepFor(dayLifts);
 
   return (
     <>
@@ -91,14 +103,22 @@ export default function ProgramDayScreen() {
             <Title>{day.name}</Title>
           </View>
           {day.session_id == null ? (
-            <Pressable onPress={() => setEditing(e => !e)} accessibilityRole="button" style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, backgroundColor: editing ? t.ink : t.panelAlt }}>
-              <Text style={{ color: editing ? t.ground : t.ink, fontWeight: '700' }}>{editing ? 'Done' : 'Customise'}</Text>
+            <Pressable onPress={() => setEditing(e => !e)} accessibilityRole="button" style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 6, backgroundColor: editing ? t.ink : t.panel, borderWidth: 1.5, borderColor: t.ink }}>
+              <Text style={{ color: editing ? t.ground : t.ink, fontWeight: '700' }}>{editing ? 'Done editing' : 'Change this day'}</Text>
             </Pressable>
           ) : null}
         </Row>
 
-        {editing ? <Body muted style={{ fontSize: 13 }}>Swap a movement for a variation that hits your weak point or works around a niggle; weights re-derive from your bests. Only this day changes.</Body> : null}
+        {editing ? (
+          <>
+            <Hint>Tap Swap to pick a different movement, + / − to change sets and reps, Remove to drop one.</Hint>
+            <Field label="Day name" value={day.name} onChangeText={v => setDay({ ...day, name: v })} onBlur={() => renameProgramDay(db, day.id, day.name.trim() || `Day ${day.day}`)} placeholder={`Day ${day.day}`} />
+          </>
+        ) : null}
 
+        {day.sets.length === 0 && !editing ? (
+          <Card><Body muted>Nothing in this day yet. Tap “Change this day”, then “Add a movement”.</Body></Card>
+        ) : null}
         <Card style={{ gap: 0, paddingVertical: 4 }}>
           {day.sets.map((s, i) => {
             const parent = parentOf(s.exercise);
@@ -138,7 +158,21 @@ export default function ProgramDayScreen() {
           })}
         </Card>
 
-        {editing ? <Button title="Add a movement" kind="ghost" onPress={addMovement} /> : null}
+        {editing ? (
+          <>
+            <Button title="+ Add a movement (accessory, variation, anything)" kind="ghost" onPress={addMovement} />
+            <Button title={`Apply this day to every week`} kind="ghost" onPress={applyAll} />
+            <Body muted style={{ fontSize: 12, textAlign: 'center' }}>Building your own program? Set up week 1, then apply each day to every week.</Body>
+          </>
+        ) : null}
+
+        {!editing && prep.length ? (
+          <Card style={{ gap: 4 }}>
+            <Eyebrow>Warm-up first · about 5 min</Eyebrow>
+            <Body muted style={{ fontSize: 13 }}>{prep.map(p => p.name).join(' · ')}</Body>
+            <Body muted style={{ fontSize: 12 }}>You tick these off in the session. Want more? There’s a “More drills” button there.</Body>
+          </Card>
+        ) : null}
 
         {day.session_id != null ? (
           <>
@@ -148,7 +182,8 @@ export default function ProgramDayScreen() {
         ) : !editing ? (
           <>
             <Button title="Log this day" onPress={log} />
-            <Body muted style={{ fontSize: 13, textAlign: 'center' }}>Creates today’s session with these sets filled in. Tap any set there to correct weight, reps or RPE to what actually happened; accessories you add by hand.</Body>
+            <Hint style={{ textAlign: 'center' }}>Tap to start — the sets go into today’s log, ready to tick off.</Hint>
+            <Body muted style={{ fontSize: 12, textAlign: 'center' }}>Did something different? In the session, tap a set to fix it.</Body>
           </>
         ) : null}
       </Screen>

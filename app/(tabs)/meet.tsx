@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Num, Row, Screen, Segmented, Title } from '@/components/ui';
+import { HelpLink } from '@/components/HelpLink';
+import { Body, Button, Card, Divider, Dot, Eyebrow, Field, H2, Hint, Num, Row, Screen, Segmented, Title } from '@/components/ui';
 import { liftColor, space, useTheme } from '@/constants/theme';
 import { bestByLift, deleteBodyweight, listBodyweight, setBodyweight, todayIso, type BodyweightRow } from '@/lib/db';
 import { formatDate, parseIso, parseNum } from '@/lib/format';
@@ -89,15 +90,22 @@ export default function MeetScreen() {
 
   return (
     <Screen style={{ paddingTop: insets.top + space.lg }}>
-      <View>
-        <Eyebrow>Meet day</Eyebrow>
-        <Title>{days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}${weeks > 1 ? ` · ${weeks} weeks` : ''} out`}</Title>
-      </View>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View>
+          <Eyebrow>Meet day</Eyebrow>
+          <Title>{days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}${weeks > 1 ? ` · ${weeks} weeks` : ''} out`}</Title>
+        </View>
+        <HelpLink topic="meet" />
+      </Row>
 
-      <Button title="Meet-day mode: timeline, attempts, running total" onPress={() => router.push('/meet/day')} />
+      <View style={{ gap: 6 }}>
+        <Button title="Open meet-day mode ›" onPress={() => router.push('/meet/day')} />
+        <Hint style={{ textAlign: 'center' }}>Your timeline for the day, attempts, and running total.</Hint>
+      </View>
 
       <Card>
         <Eyebrow>You and your meet</Eyebrow>
+        <Body muted style={{ fontSize: 12 }}>Tap a box to edit. It saves when you tap away.</Body>
         <Row style={{ alignItems: 'flex-end' }}>
           <Field label="Meet" value={meetName} onChangeText={setMeetName} onBlur={() => set('meetName', meetName.trim() || 'My meet')} placeholder="Meet name" />
           <Field label="Date (yyyy-mm-dd)" value={meetDate} onChangeText={setMeetDate} onBlur={commitDate} placeholder="2026-11-07" autoCapitalize="none" keyboardType="numbers-and-punctuation" />
@@ -118,7 +126,7 @@ export default function MeetScreen() {
 
       <View style={{ gap: space.sm }}>
         <H2>Attempts</H2>
-        <Body muted style={{ fontSize: 13 }}>Opener ≈ 91% of your best (rounded down), second ≈ 96%, third = a small PR. Everything lands on 2.5 {unit === 'kg' ? 'kg' : 'kg-equivalent'} steps. Type a different best to plan from it.</Body>
+        <Body muted style={{ fontSize: 13 }}>Worked out from your best e1RM in the log: opener ≈ 91%, second ≈ 96%, third = a small PR. To plan from a different number, type it in the box on the right.</Body>
         {LIFTS.map(l => {
           const p = plans[l];
           const b = basis(l);
@@ -177,7 +185,7 @@ export default function MeetScreen() {
         <H2>Bodyweight</H2>
         <Card>
           <Row style={{ alignItems: 'flex-end' }}>
-            <Field label={`Today (${unit})`} value={bwToday} onChangeText={setBwToday} keyboardType="decimal-pad" placeholder={fmt(bw, 1)} onSubmitEditing={saveToday} returnKeyType="done" />
+            <Field label={`Today’s weight (${unit})`} value={bwToday} onChangeText={setBwToday} keyboardType="decimal-pad" placeholder={fmt(bw, 1)} onSubmitEditing={saveToday} returnKeyType="done" />
             <Button title="Save" onPress={saveToday} style={{ minWidth: 90 }} />
           </Row>
           <Row style={{ justifyContent: 'space-between' }}>
